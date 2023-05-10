@@ -1,7 +1,7 @@
-# 1# Make a list of variant of interest (Sequence ontology terms) to subset data of interest.
 
-### Bear in mind that SO works with ontology structure as: SO:XXXXXX, but databases has the SO as: SO_XXXXXX
+######## preprocessing 
 
+### sequency ontology terms to filter variants
 var_filter_lof = [
     ### High impact variants https://www.ensembl.org/info/genome/variation/prediction/predicted_data.html
     "SO_0001589",  ## frameshit_variant
@@ -13,25 +13,8 @@ var_filter_lof = [
     "SO_0001893",  ## transcript_ablation
     # "SO:0001889", ## transcript_amplification ## the Only HIGH impact that increase protein.
 ]
-
 gof = ["SO_0002053"]
 lof = ["SO_0002054"]
-
-
-## Building Sequence Ontology
-so_path = (
-    "/Users/juanr/Desktop/Target_Engine/data_download/sequenceOntology_20221118.csv"
-)
-so_ontology = spark.read.csv(so_path, header=True)
-building = (
-    so_ontology.select(F.col("Accession"), F.col("Parents"))
-    .withColumn("Parentalind", F.split(F.col("Parents"), ","))
-    .withColumn("Parentalind", F.explode_outer("Parentalind"))
-    .groupBy("Parentalind")
-    .agg(F.collect_list(F.col("Accession")).alias("childrens"))
-    .join(so_ontology, F.col("Parentalind") == so_ontology.Accession, "right")
-)
-
 
 ### Load evidence datasources downloaded in January 2023:
 
@@ -64,69 +47,29 @@ impc = spark.read.parquet(impc_path)
 chembl_evidences = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=chembl/"
 chembl = spark.read.parquet(chembl_evidences)
 
-
-## others
-target_path = (
-    "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/targets/"
-)
-target = spark.read.parquet(target_path)
-disease_path = (
-    "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/diseases/"
-)
-diseases = spark.read.parquet(disease_path)
-dis_name = diseases.select("id", "name")
-indication_path = (
-    "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/indication/"
-)
-indication = spark.read.parquet(indication_path)
-## drug_path="/Users/juanr/Desktop/Target_Engine/downloadedEvidencesJanuary/molecule/"
-## drug=spark.read.parquet(drug_path)
-mecact_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/mechanismOfAction/"
-mecact = spark.read.parquet(mecact_path)
-
 #### GENE BURDEN
-
 ### We manually annotated those studies using LoF or PTV variants
-
+### archivo local, pasar a Ricardo
 burden_lof_path = (
     "/Users/juanr/Desktop/Target_Engine/Conteo_estudios_geneBurden_20230117.csv"
 )
 burden_lof = spark.read.csv(burden_lof_path, header=True)
 burden_lof = burden_lof.withColumnRenamed("statisticalMethodOverview", "stMethod")
 
-#### Para gene burden la funcion no tiene que hacer un filtrado de variantes
 
-### EVA/ClinVar
-
+### EVA/ClinVar (eva somatic & eva germinal)
 ##- Manually annotate which are the clinicalSignificances meaningfull: pathogenic, risk factor, protective
-
 clinSign_germline_path = "/Users/juanr/Desktop/Target_Engine/eva_clinSig_20230117.csv"
-clinSign_somatic_path = (
-    "/Users/juanr/Desktop/Target_Engine/eva_somatic_clinSig_20230117.csv"
-)
-
+clinSign_somatic_path = ("/Users/juanr/Desktop/Target_Engine/eva_somatic_clinSig_20230117.csv")
 clinSign_germline = spark.read.csv(clinSign_germline_path, header=True)
 clinSign_germline = clinSign_germline.withColumnRenamed(
     "clinicalSignificances", "significances"
 )
 clinSign_somatic = spark.read.csv(clinSign_somatic_path, header=True)
 clinSign_somatic = clinSign_somatic.withColumnRenamed(
-    "clinicalSignificances", "significances"
-)
-
-##-  Transform array of clinicalSignificances into Strings to check them.
-
-eva_somatic_toAsses = eva_somatic.withColumn(
-    "clinicalSignificances", F.concat_ws(",", F.col("clinicalSignificances"))
-)
-
-eva_germline_toAsses = eva_germline.withColumn(
-    "clinicalSignificances", F.concat_ws(",", F.col("clinicalSignificances"))
-)
-
+    "clinicalSignificances", "significances")
 
 ## annotate TSG/oncogene/bivalent using 'hallmarks.attributes'
-
 oncotsg_list = [
     "TSG",
     "oncogene",
@@ -163,10 +106,12 @@ oncolabel = (
     .withColumnRenamed("id", "target_id")
 )
 
-#### rlike('('+Keywords+')(\s|$)'
-
-
+### CHEMBL 
 ### Hacer el join del actionType con el chembl para sacar los mecanismos de accion.
+#### eliminar? 
+mecact_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/mechanismOfAction/"
+mecact = spark.read.parquet(mecact_path)
+
 inhibitors = [
     "RNAI INHIBITOR",
     "NEGATIVE MODULATOR",
@@ -209,48 +154,8 @@ actiontype2 = (
     .dropDuplicates()
 )
 
+######## start assessment
 
-chembl1 = chembl.select(
-    "targetId", "drugId", "diseaseId", "clinicalPhase", "diseaseFromSourceId"
-)
-chembl2 = (
-    chembl1.join(
-        actiontype2,
-        (actiontype2.drugId2 == F.col("drugId"))
-        & (actiontype2.targetId2 == F.col("targetId")),
-        "left",
-    ).drop("targetId2", "drugId2")
-    ###.dropDuplicates()
-    .withColumn(
-        "twoCategories_new",
-        F.when(F.col("actionType").isin(inhibitors), F.lit("inhibitor"))
-        .when(F.col("actionType").isin(activators), F.lit("activator"))
-        .otherwise(F.lit("noEvaluable")),
-    )
-)
-
-chembl3 = (
-    chembl2.filter(F.col("twoCategories_new") != "noEvaluable")
-    .groupBy("targetId", "diseaseId")
-    .pivot("twoCategories_new")
-    .agg(F.count("targetId"))
-)
-
-chembl4 = chembl3.select(
-    "targetId",
-    "diseaseId",
-    ##'clinicalPhase',
-    *(F.col(c).cast("int").alias(c) for c in columnas)
-).withColumn(
-    "coherency",
-    F.when(
-        ((F.col("activator").isNotNull()) & (F.col("inhibitor").isNotNull())),
-        F.when(
-            (F.col("activator")) - (F.col("inhibitor")) != (F.col("activator")),
-            F.lit("dispar"),
-        ),
-    ),
-)
 
 ### Join all datasets
 
@@ -274,7 +179,9 @@ all.count()
 
 #### 20230203 ###
 prueba_assessment = (
-    all.withColumn(
+    all
+####### column transformations 
+    .withColumn(
         "beta", F.col("beta").cast("float")
     )  ## from ot genetics & gene burden
     .withColumn(
@@ -289,11 +196,13 @@ prueba_assessment = (
     .withColumn(
         "variantConsequence", F.col("exploded.functionalConsequenceId")
     )  ### para cgc e intogen
-    ### .withColumn('numberSamplesSameMutationType',F.col('exploded.numberSamplesWithMutationType'))### para cgc e intogen
     .withColumn(
         "mutatedSamplesVariantInfo",
         F.coalesce(F.col("mutatedSamples.functionalConsequenceId"), F.array()),
-    )  ### para cgc e intogen
+    )
+####### join complementary information 
+      
+        ### para cgc e intogen
     .join(oncolabel, oncolabel.target_id == F.col("targetId"), "left")  ### para cgc
     .join(
         burden_lof, burden_lof.stMethod == F.col("statisticalMethodOverview"), "left"
@@ -304,8 +213,6 @@ prueba_assessment = (
         & (actiontype2.targetId2 == F.col("targetId")),
         "left",
     )
-    ##.drop('targetId2','drugId2')
-    ###.dropDuplicates()
     .withColumn(
         "Assessment",
         #### Ot_genetics Portal ### updated to include the coloc+gwas analysis
@@ -601,3 +508,92 @@ prueba_assessment = (
         .otherwise(F.lit("noEvaluable")),
     )
 )
+
+##### 
+.withColumn("Variation_result",
+        F.when(
+            F.col("datasourceId") == "ot_genetics_portal",
+
+            .when(
+                (
+                (F.col("variantFunctionalConsequenceFromQtlId") == "SO_0002315") ### increased gene product level
+                    & (
+                        F.col("variantFunctionalConsequenceId").isin(var_filter_lof)
+                        == False
+                    )
+                ),F.lit("GoF"))
+            .when(
+                (
+                    (F.col("variantFunctionalConsequenceFromQtlId") == "SO_0002316") ### decreased gene product level
+                    & (F.col("variantFunctionalConsequenceId").isin(var_filter_lof))
+                ),F.lit("LoF")
+                ),
+            ### evidences with colo+Gwas data but not variants
+            .when(
+                (
+                    (F.col("variantFunctionalConsequenceFromQtlId") == "SO_0002316") 
+                    & (
+                        F.col("variantFunctionalConsequenceId").isin(var_filter_lof)
+                        == False
+                    )
+                ),F.lit("LoF")
+                ),
+            ).when(
+                (
+                    (F.col("variantFunctionalConsequenceFromQtlId") == "SO_0002316")
+                    & (
+                        F.col("variantFunctionalConsequenceId").isin(var_filter_lof)
+                        == False
+                    )
+                ),
+                F.when((F.col("beta") < 0), F.lit("LoF_protect")).when(
+                    (F.col("beta") > 0), F.lit("LoF_risk")
+                ),
+            )
+            ### evidences with coherent non/inconclusive gwas+coloc + var_lof
+            .when(
+                ((
+                (F.col("variantFunctionalConsequenceFromQtlId") == "SO_0002314")
+                        | (F.col("variantFunctionalConsequenceFromQtlId").isNull())
+                    )
+                    & (F.col("variantFunctionalConsequenceId").isin(var_filter_lof))
+                ),F.lit("LoF")
+                ),
+            .otherwise(F.lit("noEvaluable"))
+.withColumn("Direction_result", 
+        F.when(
+            F.col("datasourceId") == "ot_genetics_portal",
+            .when(
+                (
+                    (F.col("beta").isNull()),
+                F.when((F.col("OddsRatio") > 1), F.lit("Risk"))
+                .when(
+                    (F.col("OddsRatio") < 1), F.lit("Protect")
+                ),
+            ).when(
+                (
+                    (F.col("oddsRatio").isNull()),
+                F.when((F.col("beta") < 0), F.lit("Protect"))
+                .when(
+                    (F.col("beta") > 0), F.lit("Risk")
+                ),
+            )
+            ).when(
+                (
+                    (F.col("oddsRatio").isNull())
+                    & (F.col("variantFunctionalConsequenceFromQtlId") == "SO_0002316")
+                    & (
+                        F.col("variantFunctionalConsequenceId").isin(var_filter_lof)
+                        == False
+                    )
+                ),
+                F.when((F.col("beta") < 0), F.lit("LoF_protect")).when(
+                    (F.col("beta") > 0), F.lit("LoF_risk")
+                ),
+            )
+            .otherwise(F.lit("noEvaluable")),   
+           )))
+
+            
+            , 
+
