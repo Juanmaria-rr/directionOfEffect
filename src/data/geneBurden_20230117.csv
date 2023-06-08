@@ -1,0 +1,39 @@
+statisticalMethodOverview,counts,whatToDo
+Burden test carried out with LoF variants predicted as high confidence by LOFTEE with a MAF smaller than 0.1% and applying the burden test.,1,get
+Burden test carried out with LoF variants predicted as high confidence by LOFTEE with a MAF smaller than 0.1% and applying the variable threshold test.,1,get
+Burden test carried out with pLOF variants with a MAF smaller than 0.001%.,481,get
+Burden test carried out with pLOF variants with a MAF smaller than 0.01%.,752,get
+Burden test carried out with pLOF variants with a MAF smaller than 0.1%.,841,get
+Burden test carried out with pLOF variants with a MAF smaller than 1%.,958,get
+Burden test carried out with PTV with a MAF smaller than 0.1%.,2,get
+Burden test carried out with PTVs with a MAF smaller than 0.01%.,2,get
+Burden test carried out with PTVs with a MAF smaller than 0.1%.,1948,get
+Burden test carried out with PTVs with a MAF smaller than 5%.,2381,get
+Burden test carried out with rare pLOF variants.,2264,get
+Burden test carried out with singleton pLOF variants.,182,get
+Burden test carried out with all coding region variants plus untranslated regions (UTRs) and essential splice sites and applying the burden test.,3,notGet
+Burden test carried out with all coding region variants plus untranslated regions (UTRs) and essential splice sites and applying the Madsen and Browning test.,1,notGet
+Burden test carried out with damaging variants with a MAF smaller than 0.01%.,1739,get
+Burden test carried out with LoF and missense variants with a MAF smaller than 0.1% and applying the burden test.,9,notGet
+Burden test carried out with LoF and missense variants with a MAF smaller than 0.1% and applying the Madsen and Browning test.,2,notGet
+Burden test carried out with LoF and missense variants with a MAF smaller than 0.1% and applying the variable threshold test.,4,notGet
+Burden test carried out with MTR-informed non synonymous variants with a MAF smaller than 0.01%.,1019,notGet
+Burden test carried out with MTR-informed rare missense variants with a MAF smaller than 0.005%.,287,notGet
+Burden test carried out with MTR-informed ultra rare damaging variants (MAF ≈ 0%).,931,get
+Burden test carried out with non-synonymous recessive variants with a MAF smaller than 1%.,209,notGet
+Burden test carried out with pLOF and deleterious missense variants with a MAF smaller than 0.001%.,516,get
+Burden test carried out with pLOF and deleterious missense variants with a MAF smaller than 0.01%.,905,get
+Burden test carried out with pLOF and deleterious missense variants with a MAF smaller than 0.1%.,1088,get
+Burden test carried out with pLOF and deleterious missense variants with a MAF smaller than 1%.,13,get
+Burden test carried out with pLOF or missense variants.,2747,notGet
+Burden test carried out with pLOFs and deleterious missense variants with a MAF smaller than 1%.,1484,get
+Burden test carried out with PTV and missense variants (MPC > 2) with a MAF smaller than 0.001%.,102,notGet
+Burden test carried out with PTV or rare missense variants.,1599,notGet
+"Burden test carried out with PTV,missense variants and in-frame indels with a MAF smaller than 0%.",1,notGet
+Burden test carried out with rare missense variants including low-confidence pLOF and in-frame indels.,2254,notGet
+Burden test carried out with rare missense variants with a MAF smaller than 0.005%.,666,notGet
+Burden test carried out with rare synonymous variants.,636,notGet
+Burden test carried out with singleton pLOF and deleterious missense variants.,192,get
+Burden test carried out with ultra rare damaging variants (MAF ≈ 0%).,990,get
+Meta-analysis of burden tests carried out with missense de novo and LoF variants with a MAF smaller than 0.005%,56,notGet
+Meta-analysis of burden tests carried out with PTVs and missense variants (MPC > 2) with a MAF smaller than 0.005%,10,notGet
