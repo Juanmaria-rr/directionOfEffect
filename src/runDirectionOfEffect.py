@@ -41,6 +41,44 @@ spark = (
 
 # 1# defining datasets and hardcoding some variables
 
+### evideences datset and make an union between them:
+otgenetics_evidence_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=ot_genetics_portal"
+otgenetics = spark.read.parquet(otgenetics_evidence_path)
+gene_burden_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=gene_burden"
+gene_burden = spark.read.parquet(gene_burden_path)
+eva_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=eva"
+eva_germline = spark.read.parquet(eva_path)
+eva_somatic_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=eva_somatic"
+eva_somatic = spark.read.parquet(eva_somatic_path)
+orphanet_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=orphanet"
+orphanet = spark.read.parquet(orphanet_path)
+g2p_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=gene2phenotype"
+g2p = spark.read.parquet(g2p_path)
+cgc_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=cancer_gene_census"
+cgc = spark.read.parquet(cgc_path)
+intogen_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=intogen"
+intogen = spark.read.parquet(intogen_path)
+impc_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=impc"
+impc = spark.read.parquet(impc_path)
+chembl_evidences = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=chembl/"
+chembl = spark.read.parquet(chembl_evidences)
+
+dfs = [
+    otgenetics,
+    gene_burden,
+    eva_germline,
+    eva_somatic,
+    g2p,
+    orphanet,
+    cgc,
+    intogen,
+    impc,
+    chembl,
+]
+
+allEvidences = dfs[0]
+for df in dfs[1:]:
+    allEvidences = allEvidences.unionByName(df, allowMissingColumns=True)
 ### external datasets:
 target_path = (
     "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/targets/"
