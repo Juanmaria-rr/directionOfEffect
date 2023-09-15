@@ -1,160 +1,161 @@
-PANCREATIC_ISLET - EFO_0009605 - pancreas disease
-BRAIN_PUTAMEN - EFO_0000618 - nervous system disease
-BRAIN_CEREBELLUM - EFO_0000618 - nervous system disease
-ARTERY_CORONARY - EFO_0000319 - cardiovascular disease
-Cells_EBV-transformed_lymphocytes - EFO_0000540 - immune system disease
-ADRENAL_GLAND - EFO_0001379 - endocrine system disease
-BRAIN_HYPOTHALAMUS - EFO_0000618 - nervous system disease
-MONOCYTE_LPS2 - EFO_0000540 - immune system disease
-CD8_T-CELL_NAIVE - EFO_0000540 - immune system disease
-PUTAMEN - EFO_0000618 - nervous system disease
-FIBROBLAST - EFO_0005803 - hematologic disease
-Nerve_Tibial - EFO_0000618 - nervous system disease
-Artery_Tibial - EFO_0000319 - cardiovascular disease
-MACROPHAGE_IFNG - EFO_0000540 - immune system disease
-SENSORY_NEURON - EFO_0000618 - nervous system disease
-SKIN_SUN_EXPOSED - EFO_0005932 - animal disease
-TH1_MEMORY - EFO_0000540 - immune system disease
-MINOR_SALIVARY_GLAND - OTAR_0000014 - pregnancy or perinatal disease
-Minor_Salivary_Gland - OTAR_0000014 - pregnancy or perinatal disease
-BRAIN_SPINAL_CORD - EFO_0000618 - nervous system disease
-Brain_Hypothalamus - EFO_0000618 - nervous system disease
-LCL_NAIVE - EFO_0000540 - immune system disease
-ESOPHAGUS_MUCOSA - EFO_0000319 - cardiovascular disease
-SKIN - EFO_0005932 - animal disease
-LIVER - EFO_0000319 - cardiovascular disease
-MACROPHAGE_NAIVE - EFO_0000540 - immune system disease
-MONOCYTE_LPS - EFO_0000540 - immune system disease
-RECTUM - EFO_0000319 - cardiovascular disease
-Pituitary - OTAR_0000017 - reproductive system or breast disease
-ESOPHAGUS_GEJ - EFO_0000319 - cardiovascular disease
-CD4_T-CELL_NAIVE - EFO_0000540 - immune system disease
-Brain_Cerebellum - EFO_0000618 - nervous system disease
-VAGINA - OTAR_0000017 - reproductive system or breast disease
-Spleen - EFO_0005803 - hematologic disease
-CD8_T-CELL_ANTI-CD3-CD28 - EFO_0000540 - immune system disease
-LOW_GRADE_CARTILAGE_NAIVE - EFO_0005803 - hematologic disease
-COLON_TRANSVERSE - EFO_0000319 - cardiovascular disease
-Small_Intestine_Terminal_Ileum - EFO_0000319 - cardiovascular disease
-MONOCYTE_LPS24 - EFO_0000540 - immune system disease
-BRAIN_CORTEX - EFO_0000618 - nervous system disease
-UBERON_0001969 - Other
-T-CELL - EFO_0000540 - immune system disease
-Brain_Hippocampus - EFO_0000618 - nervous system disease
-TREG_MEMORY - EFO_0000540 - immune system disease
-Cells_Cultured_fibroblasts - EFO_0005803 - hematologic disease
-Brain_Nucleus_accumbens_basal_ganglia - EFO_0000618 - nervous system disease
-NEUTROPHIL_CD15 - EFO_0000540 - immune system disease
-Brain_Cortex - EFO_0000618 - nervous system disease
-MICROGLIA_NAIVE - EFO_0000540 - immune system disease
-MONOCYTE_CD14 - EFO_0000540 - immune system disease
-TH1-17_MEMORY - EFO_0000540 - immune system disease
-SPLEEN - EFO_0005803 - hematologic disease
-NEUTROPHIL_CD16 - EFO_0000540 - immune system disease
-THYROID - EFO_0001379 - endocrine system disease
-Brain_Putamen_basal_ganglia - EFO_0000618 - nervous system disease
-PITUITARY - OTAR_0000017 - reproductive system or breast disease
-KIDNEY_CORTEX - EFO_0009690 - urinary system disease
-Brain_Cerebellar_Hemisphere - EFO_0000618 - nervous system disease
-TRANSVERSE_COLON - EFO_0000319 - cardiovascular disease
-ADIPOSE_NAIVE - EFO_0000540 - immune system disease
-BRAIN_FRONTAL_CORTEX - EFO_0000618 - nervous system disease
-Adipose_Subcutaneous - EFO_0000540 - immune system disease
-BRAIN_ANTERIOR_CINGULATE_CORTEX - EFO_0000618 - nervous system disease
-B-CELL_CD19 - EFO_0000540 - immune system disease
-TESTIS - OTAR_0000014 - pregnancy or perinatal disease
-BRAIN_AMYGDALA - EFO_0000618 - nervous system disease
-MUSCLE_NAIVE - EFO_0005803 - hematologic disease
-HEART_ATRIAL_APPENDAGE - EFO_0000319 - cardiovascular disease
-TH17_MEMORY - EFO_0000540 - immune system disease
-Kidney_Cortex - EFO_0009690 - urinary system disease
-BRAIN_NUCLEUS_ACCUMBENS - EFO_0000618 - nervous system disease
-UBERON_0000178 - Other
-HEART_LEFT_VENTRICLE - EFO_0000319 - cardiovascular disease
-ADIPOSE_SUBCUTANEOUS - EFO_0000540 - immune system disease
-BLOOD - EFO_0005803 - hematologic disease
-CD4_T-CELL_ANTI-CD3-CD28 - EFO_0000540 - immune system disease
-Colon_Sigmoid - EFO_0000319 - cardiovascular disease
-Brain_Frontal_Cortex_BA9 - EFO_0000618 - nervous system disease
-LUNG - EFO_0000319 - cardiovascular disease
-Prostate - OTAR_0000017 - reproductive system or breast disease
-Brain_Substantia_nigra - EFO_0000618 - nervous system disease
-ESOPHAGUS_MUSCULARIS - EFO_0000319 - cardiovascular disease
-BREAST - Other
-T-CELL_CD8 - EFO_0000540 - immune system disease
-Whole_Blood - EFO_0005803 - hematologic disease
-LCL_STATIN - Other
-STOMACH - EFO_0000319 - cardiovascular disease
-IPSC - Other
-PLACENTA_NAIVE - OTAR_0000014 - pregnancy or perinatal disease
-SYNOVIUM_NAIVE - EFO_0000540 - immune system disease
-ILEUM - EFO_0000319 - cardiovascular disease
-Artery_Aorta - EFO_0000319 - cardiovascular disease
-Esophagus_Mucosa - EFO_0000319 - cardiovascular disease
-NEUTROPHIL - EFO_0000540 - immune system disease
-ADIPOSE_VISCERAL - EFO_0000540 - immune system disease
-Colon_Transverse - EFO_0000319 - cardiovascular disease
-OVARY - Other
-Liver - EFO_0000319 - cardiovascular disease
-NERVE_TIBIAL - EFO_0000618 - nervous system disease
-MACROPHAGE_LISTERIA - EFO_0000540 - immune system disease
-SUBSTANTIA_NIGRA - EFO_0000618 - nervous system disease
-MONOCYTE_IAV - EFO_0000540 - immune system disease
-Stomach - EFO_0000319 - cardiovascular disease
-BRAIN_CAUDATE - EFO_0000618 - nervous system disease
-PROSTATE - OTAR_0000017 - reproductive system or breast disease
-MONOCYTE_NAIVE - EFO_0000540 - immune system disease
-BRAIN_SUBSTANTIA_NIGRA - EFO_0000618 - nervous system disease
-TFH_MEMORY - EFO_0000540 - immune system disease
-Thyroid - EFO_0001379 - endocrine system disease
-Skin_Not_Sun_Exposed_Suprapubic - EFO_0005932 - animal disease
-Adrenal_Gland - EFO_0001379 - endocrine system disease
-TH2_MEMORY - EFO_0000540 - immune system disease
-Esophagus_Gastroesophageal_Junction - EFO_0000319 - cardiovascular disease
-Brain_Amygdala - EFO_0000618 - nervous system disease
-HIGH_GRADE_CARTILAGE_NAIVE - EFO_0005803 - hematologic disease
-HLC - Other
-MONOCYTE - EFO_0000540 - immune system disease
-DLPFC_NAIVE - EFO_0000540 - immune system disease
-UTERUS - OTAR_0000014 - pregnancy or perinatal disease
-PLATELET - EFO_0005803 - hematologic disease
-Skin_Sun_Exposed_Lower_leg - EFO_0005932 - animal disease
-MACROPHAGE_SALMONELLA - EFO_0000540 - immune system disease
-Brain_Caudate_basal_ganglia - EFO_0000618 - nervous system disease
-Esophagus_Muscularis - EFO_0000319 - cardiovascular disease
-Pancreas - EFO_0009605 - pancreas disease
-Vagina - OTAR_0000017 - reproductive system or breast disease
-BRAIN_NAIVE - EFO_0000618 - nervous system disease
-MACROPHAGE_IFNG+SALMONELLA - EFO_0000540 - immune system disease
-FAT - EFO_0000540 - immune system disease
-Brain_Anterior_cingulate_cortex_BA24 - EFO_0000618 - nervous system disease
-Uterus - OTAR_0000014 - pregnancy or perinatal disease
-MUSCLE - EFO_0005803 - hematologic disease
-B-CELL_NAIVE - EFO_0000540 - immune system disease
-Heart_Atrial_Appendage - EFO_0000319 - cardiovascular disease
-LCL - Other
-Artery_Coronary - EFO_0000319 - cardiovascular disease
-TREG_NAIVE - EFO_0000540 - immune system disease
-BRAIN - EFO_0000618 - nervous system disease
-Brain_Spinal_cord_cervical_c-1 - EFO_0000618 - nervous system disease
-PANCREAS - EFO_0009605 - pancreas disease
-Heart_Left_Ventricle - EFO_0000319 - cardiovascular disease
-Lung - EFO_0000319 - cardiovascular disease
-MONOCYTE_PAM3CSK4 - EFO_0000540 - immune system disease
-SMALL_INTESTINE - EFO_0000319 - cardiovascular disease
-ARTERY_AORTA - EFO_0000319 - cardiovascular disease
-BRAIN_HIPPOCAMPUS - EFO_0000618 - nervous system disease
-Muscle_Skeletal - EFO_0005803 - hematologic disease
-Testis - OTAR_0000014 - pregnancy or perinatal disease
-T-CELL_CD4 - EFO_0000540 - immune system disease
-NK-CELL_NAIVE - EFO_0000540 - immune system disease
-BRAIN_CEREBELLAR_HEMISPHERE - EFO_0000618 - nervous system disease
-COLON_SIGMOID - EFO_0000319 - cardiovascular disease
-MONOCYTE_R848 - EFO_0000540 - immune system disease
-Ovary - Other
-ARTERY_TIBIAL - EFO_0000319 - cardiovascular disease
-Breast_Mammary_Tissue - Other
-SKIN_NOT_SUN_EXPOSED - EFO_0005932 - animal disease
-MONOCYTE_IFN24 - EFO_0000540 - immune system disease
-MONOCYTE_CD16_NAIVE - EFO_0000540 - immune system disease
-Adipose_Visceral_Omentum - EFO_0000540 - immune system disease
+original,curated,curated_simplified,,
+Whole_Blood - EFO_0005803 - hematologic disease,Whole_Blood - EFO_0005803 - hematologic disease,Whole_Blood - EFO_0005803 - hematologic disease,,
+VAGINA - OTAR_0000017 - reproductive system or breast disease,Vagina - OTAR_0000017 - reproductive system or breast disease,Vagina - OTAR_0000017 - reproductive system or breast disease,,
+Vagina - OTAR_0000017 - reproductive system or breast disease,Vagina - OTAR_0000017 - reproductive system or breast disease,Vagina - OTAR_0000017 - reproductive system or breast disease,,
+UTERUS - OTAR_0000014 - pregnancy or perinatal disease,Uterus - OTAR_0000017 - reproductive system or breast disease,Uterus - OTAR_0000017 - reproductive system or breast disease,,
+Uterus - OTAR_0000014 - pregnancy or perinatal disease,Uterus - OTAR_0000017 - reproductive system or breast disease,Uterus - OTAR_0000017 - reproductive system or breast disease,,
+UBERON_0001969 - Other,UBERON_0001969 - EFO_0005803 - hematologic disease,UBERON_0001969 - EFO_0005803 - hematologic disease,,
+UBERON_0000178 - Other,UBERON_0000178 - EFO_0005803 - hematologic disease,UBERON_0000178 - EFO_0005803 - hematologic disease,,
+TREG_NAIVE - EFO_0000540 - immune system disease,TREG_NAIVE - EFO_0000540 - immune system disease,TREG_NAIVE - EFO_0000540 - immune system disease,,
+TREG_MEMORY - EFO_0000540 - immune system disease,TREG_MEMORY - EFO_0000540 - immune system disease,TREG_MEMORY - EFO_0000540 - immune system disease,,
+TRANSVERSE_COLON - EFO_0000319 - cardiovascular disease,TRANSVERSE_COLON - EFO_0010282 - gastrointestinal disease,TRANSVERSE_COLON - EFO_0010282 - gastrointestinal disease,,
+THYROID - EFO_0001379 - endocrine system disease,THYROID - EFO_0001379 - endocrine system disease,Thyroid - EFO_0001379 - endocrine system disease,,
+Thyroid - EFO_0001379 - endocrine system disease,Thyroid - EFO_0001379 - endocrine system disease,Thyroid - EFO_0001379 - endocrine system disease,,
+TH2_MEMORY - EFO_0000540 - immune system disease,TH2_MEMORY - EFO_0000540 - immune system disease,TH2_MEMORY - EFO_0000540 - immune system disease,,
+TH17_MEMORY - EFO_0000540 - immune system disease,TH17_MEMORY - EFO_0000540 - immune system disease,TH17_MEMORY - EFO_0000540 - immune system disease,,
+TH1-17_MEMORY - EFO_0000540 - immune system disease,TH1-17_MEMORY - EFO_0000540 - immune system disease,TH1-17_MEMORY - EFO_0000540 - immune system disease,,
+TH1_MEMORY - EFO_0000540 - immune system disease,TH1_MEMORY - EFO_0000540 - immune system disease,TH1_MEMORY - EFO_0000540 - immune system disease,,
+TFH_MEMORY - EFO_0000540 - immune system disease,TFH_MEMORY - EFO_0000540 - immune system disease,TFH_MEMORY - EFO_0000540 - immune system disease,,
+TESTIS - OTAR_0000014 - pregnancy or perinatal disease,TESTIS - OTAR_0000017 - reproductive system or breast disease,Testis - OTAR_0000017 - reproductive system or breast disease,,
+Testis - OTAR_0000014 - pregnancy or perinatal disease,Testis - OTAR_0000017 - reproductive system or breast disease,Testis - OTAR_0000017 - reproductive system or breast disease,,
+T-CELL_CD8 - EFO_0000540 - immune system disease,T-CELL_CD8 - EFO_0000540 - immune system disease,T-CELL_CD8 - EFO_0000540 - immune system disease,,
+T-CELL_CD4 - EFO_0000540 - immune system disease,T-CELL_CD4 - EFO_0000540 - immune system disease,T-CELL_CD4 - EFO_0000540 - immune system disease,,
+T-CELL - EFO_0000540 - immune system disease,T-CELL - EFO_0000540 - immune system disease,T-CELL - EFO_0000540 - immune system disease,,
+SYNOVIUM_NAIVE - EFO_0000540 - immune system disease,SYNOVIUM_NAIVE - OTAR_0000006 - musculoskeletal or connective tissue disease,SYNOVIUM_NAIVE - OTAR_0000006 - musculoskeletal or connective tissue disease,,
+SUBSTANTIA_NIGRA - EFO_0000618 - nervous system disease,SUBSTANTIA_NIGRA - EFO_0000618 - nervous system disease,SUBSTANTIA_NIGRA - EFO_0000618 - nervous system disease,,
+STOMACH - EFO_0000319 - cardiovascular disease,STOMACH - EFO_0010282 - gastrointestinal disease,Stomach - EFO_0010282 - gastrointestinal disease,,
+Stomach - EFO_0000319 - cardiovascular disease,Stomach - EFO_0010282 - gastrointestinal disease,Stomach - EFO_0010282 - gastrointestinal disease,,
+Spleen - EFO_0000540 - immune system disease,Spleen - EFO_0000540 - immune system disease,Spleen - EFO_0000540 - immune system disease,,
+SPLEEN - EFO_0000540 - immune system disease,SPLEEN - EFO_0000540 - immune system disease,Spleen - EFO_0000540 - immune system disease,,
+Small_Intestine_Terminal_Ileum - EFO_0000319 - cardiovascular disease,Small_Intestine_Terminal_Ileum - EFO_0010282 - gastrointestinal disease,Small_Intestine_Terminal_Ileum - EFO_0010282 - gastrointestinal disease,,
+SMALL_INTESTINE - EFO_0000319 - cardiovascular disease,SMALL_INTESTINE - EFO_0010282 - gastrointestinal disease,SMALL_INTESTINE - EFO_0010282 - gastrointestinal disease,,
+Skin_Sun_Exposed_Lower_leg - EFO_0005932 - animal disease,Skin_Sun_Exposed_Lower_leg - EFO_0010285 - integumentary system disease,Skin_Sun_Exposed_Lower_leg - EFO_0010285 - integumentary system disease,,
+SKIN_SUN_EXPOSED - EFO_0005932 - animal disease,SKIN_SUN_EXPOSED - EFO_0010285 - integumentary system disease,SKIN_SUN_EXPOSED - EFO_0010285 - integumentary system disease,,
+Skin_Not_Sun_Exposed_Suprapubic - EFO_0005932 - animal disease,Skin_Not_Sun_Exposed_Suprapubic - EFO_0010285 - integumentary system disease,Skin_Not_Sun_Exposed_Suprapubic - EFO_0010285 - integumentary system disease,,
+SKIN_NOT_SUN_EXPOSED - EFO_0005932 - animal disease,SKIN_NOT_SUN_EXPOSED - EFO_0010285 - integumentary system disease,SKIN_NOT_SUN_EXPOSED - EFO_0010285 - integumentary system disease,,
+SKIN - EFO_0010285 - integumentary system disease,SKIN - EFO_0010285 - integumentary system disease,SKIN - EFO_0010285 - integumentary system disease,,
+SENSORY_NEURON - EFO_0000618 - nervous system disease,SENSORY_NEURON - EFO_0000618 - nervous system disease,SENSORY_NEURON - EFO_0000618 - nervous system disease,,
+RECTUM - EFO_0000319 - cardiovascular disease,RECTUM - EFO_0010282 - gastrointestinal disease,RECTUM - EFO_0010282 - gastrointestinal disease,,
+PUTAMEN - EFO_0000618 - nervous system disease,PUTAMEN - EFO_0000618 - nervous system disease,PUTAMEN - EFO_0000618 - nervous system disease,,
+Prostate - OTAR_0000017 - reproductive system or breast disease,Prostate - OTAR_0000017 - reproductive system or breast disease,Prostate - OTAR_0000017 - reproductive system or breast disease,,
+PROSTATE - OTAR_0000017 - reproductive system or breast disease,PROSTATE - OTAR_0000017 - reproductive system or breast disease,Prostate - OTAR_0000017 - reproductive system or breast disease,,
+PLATELET - EFO_0005803 - hematologic disease,PLATELET - EFO_0005803 - hematologic disease,PLATELET - EFO_0005803 - hematologic disease,,
+PLACENTA_NAIVE - OTAR_0000014 - pregnancy or perinatal disease,PLACENTA_NAIVE - OTAR_0000014 - pregnancy or perinatal disease,PLACENTA_NAIVE - OTAR_0000014 - pregnancy or perinatal disease,,
+Pituitary - OTAR_0000017 - reproductive system or breast disease,Pituitary - EFO_0001379 - endocrine system disease,Pituitary - EFO_0001379 - endocrine system disease,,
+PITUITARY - OTAR_0000017 - reproductive system or breast disease,PITUITARY - EFO_0001379 - endocrine system disease,Pituitary - EFO_0001379 - endocrine system disease,,
+PANCREATIC_ISLET - EFO_0009605 - pancreas disease,PANCREATIC_ISLET - EFO_0009605 - pancreas disease,PANCREATIC_ISLET - EFO_0009605 - pancreas disease,,
+Pancreas - EFO_0009605 - pancreas disease,Pancreas - EFO_0009605 - pancreas disease,Pancreas - EFO_0009605 - pancreas disease,,
+PANCREAS - EFO_0009605 - pancreas disease,PANCREAS - EFO_0009605 - pancreas disease,Pancreas - EFO_0009605 - pancreas disease,,
+OVARY - Other,OVARY - OTAR_0000017 - reproductive system or breast disease,Ovary - OTAR_0000017 - reproductive system or breast disease,,
+Ovary - Other,Ovary - OTAR_0000017 - reproductive system or breast disease,Ovary - OTAR_0000017 - reproductive system or breast disease,,
+NK-CELL_NAIVE - EFO_0000540 - immune system disease,NK-CELL_NAIVE - EFO_0000540 - immune system disease,NK-CELL_NAIVE - EFO_0000540 - immune system disease,,
+NEUTROPHIL_CD16 - EFO_0000540 - immune system disease,NEUTROPHIL_CD16 - EFO_0000540 - immune system disease,NEUTROPHIL_CD16 - EFO_0000540 - immune system disease,,
+NEUTROPHIL_CD15 - EFO_0000540 - immune system disease,NEUTROPHIL_CD15 - EFO_0000540 - immune system disease,NEUTROPHIL_CD15 - EFO_0000540 - immune system disease,,
+NEUTROPHIL - EFO_0000540 - immune system disease,NEUTROPHIL - EFO_0000540 - immune system disease,NEUTROPHIL - EFO_0000540 - immune system disease,,
+Nerve_Tibial - EFO_0000618 - nervous system disease,Nerve_Tibial - EFO_0000618 - nervous system disease,Nerve_Tibial - EFO_0000618 - nervous system disease,,
+NERVE_TIBIAL - EFO_0000618 - nervous system disease,NERVE_TIBIAL - EFO_0000618 - nervous system disease,NERVE_TIBIAL - EFO_0000618 - nervous system disease,,
+Muscle_Skeletal - EFO_0005803 - hematologic disease,Muscle_Skeletal - OTAR_0000006 - musculoskeletal or connective tissue disease,Muscle_Skeletal - OTAR_0000006 - musculoskeletal or connective tissue disease,,
+MUSCLE_NAIVE - EFO_0005803 - hematologic disease,MUSCLE_NAIVE - OTAR_0000006 - musculoskeletal or connective tissue disease,MUSCLE_NAIVE - OTAR_0000006 - musculoskeletal or connective tissue disease,,
+MUSCLE - EFO_0005803 - hematologic disease,MUSCLE - OTAR_0000006 - musculoskeletal or connective tissue disease,MUSCLE - OTAR_0000006 - musculoskeletal or connective tissue disease,,
+MONOCYTE_R848 - EFO_0000540 - immune system disease,MONOCYTE_R848 - EFO_0000540 - immune system disease,MONOCYTE_R848 - EFO_0000540 - immune system disease,,
+MONOCYTE_PAM3CSK4 - EFO_0000540 - immune system disease,MONOCYTE_PAM3CSK4 - EFO_0000540 - immune system disease,MONOCYTE_PAM3CSK4 - EFO_0000540 - immune system disease,,
+MONOCYTE_NAIVE - EFO_0000540 - immune system disease,MONOCYTE_NAIVE - EFO_0000540 - immune system disease,MONOCYTE_NAIVE - EFO_0000540 - immune system disease,,
+MONOCYTE_LPS24 - EFO_0000540 - immune system disease,MONOCYTE_LPS24 - EFO_0000540 - immune system disease,MONOCYTE_LPS24 - EFO_0000540 - immune system disease,,
+MONOCYTE_LPS2 - EFO_0000540 - immune system disease,MONOCYTE_LPS2 - EFO_0000540 - immune system disease,MONOCYTE_LPS2 - EFO_0000540 - immune system disease,,
+MONOCYTE_LPS - EFO_0000540 - immune system disease,MONOCYTE_LPS - EFO_0000540 - immune system disease,MONOCYTE_LPS - EFO_0000540 - immune system disease,,
+MONOCYTE_IFN24 - EFO_0000540 - immune system disease,MONOCYTE_IFN24 - EFO_0000540 - immune system disease,MONOCYTE_IFN24 - EFO_0000540 - immune system disease,,
+MONOCYTE_IAV - EFO_0000540 - immune system disease,MONOCYTE_IAV - EFO_0000540 - immune system disease,MONOCYTE_IAV - EFO_0000540 - immune system disease,,
+MONOCYTE_CD16_NAIVE - EFO_0000540 - immune system disease,MONOCYTE_CD16_NAIVE - EFO_0000540 - immune system disease,MONOCYTE_CD16_NAIVE - EFO_0000540 - immune system disease,,
+MONOCYTE_CD14 - EFO_0000540 - immune system disease,MONOCYTE_CD14 - EFO_0000540 - immune system disease,MONOCYTE_CD14 - EFO_0000540 - immune system disease,,
+MONOCYTE - EFO_0000540 - immune system disease,MONOCYTE - EFO_0000540 - immune system disease,MONOCYTE - EFO_0000540 - immune system disease,,
+MINOR_SALIVARY_GLAND - OTAR_0000014 - pregnancy or perinatal disease,MINOR_SALIVARY_GLAND - EFO_0010282 - gastrointestinal disease,Minor_Salivary_Gland - EFO_0010282 - gastrointestinal disease,,
+Minor_Salivary_Gland - OTAR_0000014 - pregnancy or perinatal disease,Minor_Salivary_Gland - EFO_0010282 - gastrointestinal disease,Minor_Salivary_Gland - EFO_0010282 - gastrointestinal disease,,
+MICROGLIA_NAIVE - EFO_0000540 - immune system disease,MICROGLIA_NAIVE - EFO_0000540 - immune system disease,MICROGLIA_NAIVE - EFO_0000540 - immune system disease,,
+MACROPHAGE_SALMONELLA - EFO_0000540 - immune system disease,MACROPHAGE_SALMONELLA - EFO_0000540 - immune system disease,MACROPHAGE_SALMONELLA - EFO_0000540 - immune system disease,,
+MACROPHAGE_NAIVE - EFO_0000540 - immune system disease,MACROPHAGE_NAIVE - EFO_0000540 - immune system disease,MACROPHAGE_NAIVE - EFO_0000540 - immune system disease,,
+MACROPHAGE_LISTERIA - EFO_0000540 - immune system disease,MACROPHAGE_LISTERIA - EFO_0000540 - immune system disease,MACROPHAGE_LISTERIA - EFO_0000540 - immune system disease,,
+MACROPHAGE_IFNG+SALMONELLA - EFO_0000540 - immune system disease,MACROPHAGE_IFNG+SALMONELLA - EFO_0000540 - immune system disease,MACROPHAGE_IFNG+SALMONELLA - EFO_0000540 - immune system disease,,
+MACROPHAGE_IFNG - EFO_0000540 - immune system disease,MACROPHAGE_IFNG - EFO_0000540 - immune system disease,MACROPHAGE_IFNG - EFO_0000540 - immune system disease,,
+LUNG - EFO_0000319 - cardiovascular disease,LUNG - OTAR_0000010 - respiratory or thoracic disease,Lung - OTAR_0000010 - respiratory or thoracic disease,,
+Lung - EFO_0000319 - cardiovascular disease,Lung - OTAR_0000010 - respiratory or thoracic disease,Lung - OTAR_0000010 - respiratory or thoracic disease,,
+LOW_GRADE_CARTILAGE_NAIVE - EFO_0005803 - hematologic disease,LOW_GRADE_CARTILAGE_NAIVE - OTAR_0000006 - musculoskeletal or connective tissue disease,LOW_GRADE_CARTILAGE_NAIVE - OTAR_0000006 - musculoskeletal or connective tissue disease,,
+LIVER - OTAR_0000014 - pregnancy or perinatal disease,LIVER - EFO_0010282 - gastrointestinal disease,LIVER - EFO_0010282 - gastrointestinal disease,,
+Liver - EFO_0000319 - cardiovascular disease,Liver - EFO_0010282 - gastrointestinal disease,Liver - EFO_0010282 - gastrointestinal disease,,
+LCL_STATIN - Other,LCL_STATIN - GO_0008150 - biological process,LCL_STATIN - GO_0008150 - biological process,,
+LCL_NAIVE - EFO_0000540 - immune system disease,LCL_NAIVE - EFO_0000540 - immune system disease,LCL_NAIVE - EFO_0000540 - immune system disease,,
+LCL - Other,LCL - EFO_0000540 - immune system disease,LCL - EFO_0000540 - immune system disease,,
+KIDNEY_CORTEX - EFO_0009690 - urinary system disease,KIDNEY_CORTEX - EFO_0009690 - urinary system disease,KIDNEY_CORTEX - EFO_0009690 - urinary system disease,,
+Kidney_Cortex - EFO_0009690 - urinary system disease,Kidney_Cortex - EFO_0009690 - urinary system disease,Kidney_Cortex - EFO_0009690 - urinary system disease,,
+IPSC - Other,IPSC - GO_0008150 - biological process,IPSC - GO_0008150 - biological process,,
+ILEUM - EFO_0000319 - cardiovascular disease,ILEUM - EFO_0010282 - gastrointestinal disease,ILEUM - EFO_0010282 - gastrointestinal disease,,
+HLC - Other,HLC - GO_0008150 - biological process,HLC - GO_0008150 - biological process,,
+HIGH_GRADE_CARTILAGE_NAIVE - EFO_0005803 - hematologic disease,HIGH_GRADE_CARTILAGE_NAIVE - OTAR_0000006 - musculoskeletal or connective tissue disease,HIGH_GRADE_CARTILAGE_NAIVE - OTAR_0000006 - musculoskeletal or connective tissue disease,,
+HEART_LEFT_VENTRICLE - EFO_0000319 - cardiovascular disease,HEART_LEFT_VENTRICLE - EFO_0000319 - cardiovascular disease,Heart_Left_Ventricle - EFO_0000319 - cardiovascular disease,,
+Heart_Left_Ventricle - EFO_0000319 - cardiovascular disease,Heart_Left_Ventricle - EFO_0000319 - cardiovascular disease,Heart_Left_Ventricle - EFO_0000319 - cardiovascular disease,,
+HEART_ATRIAL_APPENDAGE - EFO_0000319 - cardiovascular disease,HEART_ATRIAL_APPENDAGE - EFO_0000319 - cardiovascular disease,HEART_ATRIAL_APPENDAGE - EFO_0000319 - cardiovascular disease,,
+Heart_Atrial_Appendage - EFO_0000319 - cardiovascular disease,Heart_Atrial_Appendage - EFO_0000319 - cardiovascular disease,Heart_Atrial_Appendage - EFO_0000319 - cardiovascular disease,,
+FIBROBLAST - EFO_0005803 - hematologic disease,FIBROBLAST - OTAR_0000006 - musculoskeletal or connective tissue disease,FIBROBLAST - OTAR_0000006 - musculoskeletal or connective tissue disease,,
+FAT - EFO_0000540 - immune system disease,FAT - OTAR_0000006 - musculoskeletal or connective tissue disease,FAT - OTAR_0000006 - musculoskeletal or connective tissue disease,,
+ESOPHAGUS_MUSCULARIS - EFO_0000319 - cardiovascular disease,ESOPHAGUS_MUSCULARIS - EFO_0010282 - gastrointestinal disease,Esophagus_Muscularis - EFO_0010282 - gastrointestinal disease,,
+Esophagus_Muscularis - EFO_0000319 - cardiovascular disease,Esophagus_Muscularis - EFO_0010282 - gastrointestinal disease,Esophagus_Muscularis - EFO_0010282 - gastrointestinal disease,,
+ESOPHAGUS_MUCOSA - EFO_0010282 - gastrointestinal disease,ESOPHAGUS_MUCOSA - EFO_0010282 - gastrointestinal disease,Esophagus_Mucosa - EFO_0010282 - gastrointestinal disease,,
+Esophagus_Mucosa - EFO_0000319 - cardiovascular disease,Esophagus_Mucosa - EFO_0010282 - gastrointestinal disease,Esophagus_Mucosa - EFO_0010282 - gastrointestinal disease,,
+ESOPHAGUS_GEJ - EFO_0000319 - cardiovascular disease,ESOPHAGUS_GEJ - EFO_0010282 - gastrointestinal disease,Esophagus_Gastroesophageal_Junction - EFO_0010282 - gastrointestinal disease,,
+Esophagus_Gastroesophageal_Junction - EFO_0000319 - cardiovascular disease,Esophagus_Gastroesophageal_Junction - EFO_0010282 - gastrointestinal disease,Esophagus_Gastroesophageal_Junction - EFO_0010282 - gastrointestinal disease,,
+DLPFC_NAIVE - EFO_0000540 - immune system disease,DLPFC_NAIVE - EFO_0000618 - nervous system disease,DLPFC_NAIVE - EFO_0000618 - nervous system disease,,neuro dorsolateral prefrontal cortex
+COLON_TRANSVERSE - EFO_0000319 - cardiovascular disease,COLON_TRANSVERSE - EFO_0010282 - gastrointestinal disease,Colon_Transverse - EFO_0010282 - gastrointestinal disease,,
+Colon_Transverse - EFO_0000319 - cardiovascular disease,Colon_Transverse - EFO_0010282 - gastrointestinal disease,Colon_Transverse - EFO_0010282 - gastrointestinal disease,,
+Colon_Sigmoid - EFO_0000319 - cardiovascular disease,Colon_Sigmoid - EFO_0010282 - gastrointestinal disease,Colon_Sigmoid - EFO_0010282 - gastrointestinal disease,,
+COLON_SIGMOID - EFO_0000319 - cardiovascular disease,COLON_SIGMOID - EFO_0010282 - gastrointestinal disease,Colon_Sigmoid - EFO_0010282 - gastrointestinal disease,,
+Cells_EBV-transformed_lymphocytes - EFO_0000540 - immune system disease,Cells_EBV-transformed_lymphocytes - EFO_0000540 - immune system disease,Cells_EBV-transformed_lymphocytes - EFO_0000540 - immune system disease,,
+Cells_Cultured_fibroblasts - EFO_0005803 - hematologic disease,Cells_Cultured_fibroblasts - GO_0008150 - biological process,Cells_Cultured_fibroblasts - GO_0008150 - biological process,,
+CD8_T-CELL_NAIVE - EFO_0000540 - immune system disease,CD8_T-CELL_NAIVE - EFO_0000540 - immune system disease,CD8_T-CELL_NAIVE - EFO_0000540 - immune system disease,,
+CD8_T-CELL_ANTI-CD3-CD28 - EFO_0000540 - immune system disease,CD8_T-CELL_ANTI-CD3-CD28 - EFO_0000540 - immune system disease,CD8_T-CELL_ANTI-CD3-CD28 - EFO_0000540 - immune system disease,,
+CD4_T-CELL_NAIVE - EFO_0000540 - immune system disease,CD4_T-CELL_NAIVE - EFO_0000540 - immune system disease,CD4_T-CELL_NAIVE - EFO_0000540 - immune system disease,,
+CD4_T-CELL_ANTI-CD3-CD28 - EFO_0000540 - immune system disease,CD4_T-CELL_ANTI-CD3-CD28 - EFO_0000540 - immune system disease,CD4_T-CELL_ANTI-CD3-CD28 - EFO_0000540 - immune system disease,,
+Breast_Mammary_Tissue - Other,Breast_Mammary_Tissue - OTAR_0000017 - reproductive system or breast disease,Breast_Mammary_Tissue - OTAR_0000017 - reproductive system or breast disease,,
+BREAST - Other,BREAST - OTAR_0000017 - reproductive system or breast disease,BREAST - OTAR_0000017 - reproductive system or breast disease,,
+Brain_Substantia_nigra - EFO_0000618 - nervous system disease,Brain_Substantia_nigra - EFO_0000618 - nervous system disease,Brain_Substantia_nigra - EFO_0000618 - nervous system disease,,
+BRAIN_SUBSTANTIA_NIGRA - EFO_0000618 - nervous system disease,BRAIN_SUBSTANTIA_NIGRA - EFO_0000618 - nervous system disease,Brain_Substantia_nigra - EFO_0000618 - nervous system disease,,
+Brain_Spinal_cord_cervical_c-1 - EFO_0000618 - nervous system disease,Brain_Spinal_cord_cervical_c-1 - EFO_0000618 - nervous system disease,Brain_Spinal_cord_cervical_c-1 - EFO_0000618 - nervous system disease,,
+BRAIN_SPINAL_CORD - EFO_0000618 - nervous system disease,BRAIN_SPINAL_CORD - EFO_0000618 - nervous system disease,BRAIN_SPINAL_CORD - EFO_0000618 - nervous system disease,,
+Brain_Putamen_basal_ganglia - EFO_0000618 - nervous system disease,Brain_Putamen_basal_ganglia - EFO_0000618 - nervous system disease,Brain_Putamen_basal_ganglia - EFO_0000618 - nervous system disease,,
+BRAIN_PUTAMEN - EFO_0000618 - nervous system disease,BRAIN_PUTAMEN - EFO_0000618 - nervous system disease,BRAIN_PUTAMEN - EFO_0000618 - nervous system disease,,
+Brain_Nucleus_accumbens_basal_ganglia - EFO_0000618 - nervous system disease,Brain_Nucleus_accumbens_basal_ganglia - EFO_0000618 - nervous system disease,Brain_Nucleus_accumbens_basal_ganglia - EFO_0000618 - nervous system disease,,
+BRAIN_NUCLEUS_ACCUMBENS - EFO_0000618 - nervous system disease,BRAIN_NUCLEUS_ACCUMBENS - EFO_0000618 - nervous system disease,BRAIN_NUCLEUS_ACCUMBENS - EFO_0000618 - nervous system disease,,
+BRAIN_NAIVE - EFO_0000618 - nervous system disease,BRAIN_NAIVE - EFO_0000618 - nervous system disease,BRAIN_NAIVE - EFO_0000618 - nervous system disease,,
+BRAIN_HYPOTHALAMUS - EFO_0000618 - nervous system disease,BRAIN_HYPOTHALAMUS - EFO_0000618 - nervous system disease,Brain_Hypothalamus - EFO_0000618 - nervous system disease,,
+Brain_Hypothalamus - EFO_0000618 - nervous system disease,Brain_Hypothalamus - EFO_0000618 - nervous system disease,Brain_Hypothalamus - EFO_0000618 - nervous system disease,,
+Brain_Hippocampus - EFO_0000618 - nervous system disease,Brain_Hippocampus - EFO_0000618 - nervous system disease,Brain_Hippocampus - EFO_0000618 - nervous system disease,,
+BRAIN_HIPPOCAMPUS - EFO_0000618 - nervous system disease,BRAIN_HIPPOCAMPUS - EFO_0000618 - nervous system disease,Brain_Hippocampus - EFO_0000618 - nervous system disease,,
+Brain_Frontal_Cortex_BA9 - EFO_0000618 - nervous system disease,Brain_Frontal_Cortex_BA9 - EFO_0000618 - nervous system disease,Brain_Frontal_Cortex_BA9 - EFO_0000618 - nervous system disease,,
+BRAIN_FRONTAL_CORTEX - EFO_0000618 - nervous system disease,BRAIN_FRONTAL_CORTEX - EFO_0000618 - nervous system disease,BRAIN_FRONTAL_CORTEX - EFO_0000618 - nervous system disease,,
+BRAIN_CORTEX - EFO_0000618 - nervous system disease,BRAIN_CORTEX - EFO_0000618 - nervous system disease,Brain_Cortex - EFO_0000618 - nervous system disease,,
+Brain_Cortex - EFO_0000618 - nervous system disease,Brain_Cortex - EFO_0000618 - nervous system disease,Brain_Cortex - EFO_0000618 - nervous system disease,,
+BRAIN_CEREBELLUM - EFO_0000618 - nervous system disease,BRAIN_CEREBELLUM - EFO_0000618 - nervous system disease,Brain_Cerebellum - EFO_0000618 - nervous system disease,,
+Brain_Cerebellum - EFO_0000618 - nervous system disease,Brain_Cerebellum - EFO_0000618 - nervous system disease,Brain_Cerebellum - EFO_0000618 - nervous system disease,,
+Brain_Cerebellar_Hemisphere - EFO_0000618 - nervous system disease,Brain_Cerebellar_Hemisphere - EFO_0000618 - nervous system disease,Brain_Cerebellar_Hemisphere - EFO_0000618 - nervous system disease,,
+BRAIN_CEREBELLAR_HEMISPHERE - EFO_0000618 - nervous system disease,BRAIN_CEREBELLAR_HEMISPHERE - EFO_0000618 - nervous system disease,Brain_Cerebellar_Hemisphere - EFO_0000618 - nervous system disease,,
+Brain_Caudate_basal_ganglia - EFO_0000618 - nervous system disease,Brain_Caudate_basal_ganglia - EFO_0000618 - nervous system disease,Brain_Caudate_basal_ganglia - EFO_0000618 - nervous system disease,,
+BRAIN_CAUDATE - EFO_0000618 - nervous system disease,BRAIN_CAUDATE - EFO_0000618 - nervous system disease,BRAIN_CAUDATE - EFO_0000618 - nervous system disease,,
+Brain_Anterior_cingulate_cortex_BA24 - EFO_0000618 - nervous system disease,Brain_Anterior_cingulate_cortex_BA24 - EFO_0000618 - nervous system disease,Brain_Anterior_cingulate_cortex_BA24 - EFO_0000618 - nervous system disease,,
+BRAIN_ANTERIOR_CINGULATE_CORTEX - EFO_0000618 - nervous system disease,BRAIN_ANTERIOR_CINGULATE_CORTEX - EFO_0000618 - nervous system disease,Brain_Anterior_cingulate_cortex_BA24 - EFO_0000618 - nervous system disease,,
+BRAIN_AMYGDALA - EFO_0000618 - nervous system disease,BRAIN_AMYGDALA - EFO_0000618 - nervous system disease,Brain_Amygdala - EFO_0000618 - nervous system disease,,
+Brain_Amygdala - EFO_0000618 - nervous system disease,Brain_Amygdala - EFO_0000618 - nervous system disease,Brain_Amygdala - EFO_0000618 - nervous system disease,,
+BRAIN - EFO_0000618 - nervous system disease,BRAIN - EFO_0000618 - nervous system disease,BRAIN - EFO_0000618 - nervous system disease,,
+BLOOD - EFO_0005803 - hematologic disease,BLOOD - EFO_0005803 - hematologic disease,BLOOD - EFO_0005803 - hematologic disease,,
+B-CELL_NAIVE - EFO_0000540 - immune system disease,B-CELL_NAIVE - EFO_0000540 - immune system disease,B-CELL_NAIVE - EFO_0000540 - immune system disease,,
+B-CELL_CD19 - EFO_0000540 - immune system disease,B-CELL_CD19 - EFO_0000540 - immune system disease,B-CELL_CD19 - EFO_0000540 - immune system disease,,
+Artery_Tibial - EFO_0000319 - cardiovascular disease,Artery_Tibial - EFO_0000319 - cardiovascular disease,Artery_Tibial - EFO_0000319 - cardiovascular disease,,
+ARTERY_TIBIAL - EFO_0000319 - cardiovascular disease,ARTERY_TIBIAL - EFO_0000319 - cardiovascular disease,Artery_Tibial - EFO_0000319 - cardiovascular disease,,
+ARTERY_CORONARY - EFO_0000319 - cardiovascular disease,ARTERY_CORONARY - EFO_0000319 - cardiovascular disease,Artery_Coronary - EFO_0000319 - cardiovascular disease,,
+Artery_Coronary - EFO_0000319 - cardiovascular disease,Artery_Coronary - EFO_0000319 - cardiovascular disease,Artery_Coronary - EFO_0000319 - cardiovascular disease,,
+Artery_Aorta - EFO_0000319 - cardiovascular disease,Artery_Aorta - EFO_0000319 - cardiovascular disease,Artery_Aorta - EFO_0000319 - cardiovascular disease,,
+ARTERY_AORTA - EFO_0000319 - cardiovascular disease,ARTERY_AORTA - EFO_0000319 - cardiovascular disease,Artery_Aorta - EFO_0000319 - cardiovascular disease,,
+ADRENAL_GLAND - EFO_0001379 - endocrine system disease,ADRENAL_GLAND - EFO_0001379 - endocrine system disease,Adrenal_Gland - EFO_0001379 - endocrine system disease,,
+Adrenal_Gland - EFO_0001379 - endocrine system disease,Adrenal_Gland - EFO_0001379 - endocrine system disease,Adrenal_Gland - EFO_0001379 - endocrine system disease,,
+Adipose_Visceral_Omentum - EFO_0000540 - immune system disease,Adipose_Visceral_Omentum - OTAR_0000006 - musculoskeletal or connective tissue disease,Adipose_Visceral_Omentum - OTAR_0000006 - musculoskeletal or connective tissue disease,,
+ADIPOSE_VISCERAL - EFO_0000540 - immune system disease,ADIPOSE_VISCERAL - OTAR_0000006 - musculoskeletal or connective tissue disease,ADIPOSE_VISCERAL - OTAR_0000006 - musculoskeletal or connective tissue disease,,
+Adipose_Subcutaneous - EFO_0000540 - immune system disease,Adipose_Subcutaneous - OTAR_0000006 - musculoskeletal or connective tissue disease,Adipose_Subcutaneous - OTAR_0000006 - musculoskeletal or connective tissue disease,,
+ADIPOSE_SUBCUTANEOUS - EFO_0000540 - immune system disease,ADIPOSE_SUBCUTANEOUS - OTAR_0000006 - musculoskeletal or connective tissue disease,Adipose_Subcutaneous - OTAR_0000006 - musculoskeletal or connective tissue disease,,
+ADIPOSE_NAIVE - EFO_0000540 - immune system disease,ADIPOSE_NAIVE - OTAR_0000006 - musculoskeletal or connective tissue disease,ADIPOSE_NAIVE - OTAR_0000006 - musculoskeletal or connective tissue disease,,
