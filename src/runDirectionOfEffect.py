@@ -1,94 +1,24 @@
-import pyspark
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import SparkSession, Window
 import pyspark.sql.functions as F
-from pyspark.sql import Window
 
-from psutil import virtual_memory
-from pyspark import SparkFiles
-from pyspark.conf import SparkConf
-from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col
+spark = SparkSession.builder.getOrCreate()
 
-
-def detect_spark_memory_limit():
-    """Spark does not automatically use all available memory on a machine. When working on large datasets, this may
-    cause Java heap space errors, even though there is plenty of RAM available. To fix this, we detect the total amount
-    of physical memory and allow Spark to use (almost) all of it."""
-    mem_gib = virtual_memory().total >> 30
-    return int(mem_gib * 0.9)
-
-
-spark_mem_limit = detect_spark_memory_limit()
-spark_conf = (
-    SparkConf()
-    .set("spark.driver.memory", f"{spark_mem_limit}g")
-    .set("spark.executor.memory", f"{spark_mem_limit}g")
-    .set("spark.driver.maxResultSize", "0")
-    .set("spark.debug.maxToStringFields", "2000000000")
-    .set("spark.sql.execution.arrow.maxRecordsPerBatch", "500000")
-    .set("spark.sql.execution.arrow.pyspark.enabled", "true")
-    .set("spark.ui.showConsoleProgress", "false")
+### read first passs of ETL results
+evidences = spark.read.parquet(
+    "gs://open-targets-pre-data-releases/ricardo/23.09/output/etl/parquet/evidence/"
 )
-
-spark = (
-    SparkSession.builder.config(conf=spark_conf)
-    .master("local[*]")
-    .config("spark.driver.bindAddress", "127.0.0.1")
-    .config("spark.driver.host", "localhost")
-    .getOrCreate()
-)
-
 
 # 1# defining datasets and hardcoding some variables
-
-### evideences datset and make an union between them:
-otgenetics_evidence_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=ot_genetics_portal"
-otgenetics = spark.read.parquet(otgenetics_evidence_path)
-gene_burden_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=gene_burden"
-gene_burden = spark.read.parquet(gene_burden_path)
-eva_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=eva"
-eva_germline = spark.read.parquet(eva_path)
-eva_somatic_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=eva_somatic"
-eva_somatic = spark.read.parquet(eva_somatic_path)
-orphanet_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=orphanet"
-orphanet = spark.read.parquet(orphanet_path)
-g2p_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=gene2phenotype"
-g2p = spark.read.parquet(g2p_path)
-cgc_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=cancer_gene_census"
-cgc = spark.read.parquet(cgc_path)
-intogen_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=intogen"
-intogen = spark.read.parquet(intogen_path)
-impc_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=impc"
-impc = spark.read.parquet(impc_path)
-chembl_evidences = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/evidence/sourceId=chembl/"
-chembl = spark.read.parquet(chembl_evidences)
-
-dfs = [
-    otgenetics,
-    gene_burden,
-    eva_germline,
-    eva_somatic,
-    g2p,
-    orphanet,
-    cgc,
-    intogen,
-    impc,
-    chembl,
-]
-
-allEvidences = dfs[0]
-for df in dfs[1:]:
-    allEvidences = allEvidences.unionByName(df, allowMissingColumns=True)
 ### external datasets:
-target_path = (
-    "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/targets/"
-)
+target_path = "gs://open-targets-data-releases/23.09/output/etl/parquet/targets/"
 target = spark.read.parquet(target_path)
-mecact_path = "/Users/juanr/Desktop/Target_Engine/DownloadFebruary_Release23.02/mechanismOfAction/"
+mecact_path = (
+    "gs://open-targets-data-releases/23.09/output/etl/parquet/mechanismOfAction/"
+)
 mecact = spark.read.parquet(mecact_path)
 
 ### We manually annotated those studies using LoF or PTV variants - GeneBurden
-burden_lof_path = "/Users/juanr/Desktop/directionOfEffect/geneBurden_20230117.csv"
+burden_lof_path = "gs://ot-team/jroldan/20230704_geneBurden_StudyInclusion.csv"
 burden_lof = spark.read.csv(burden_lof_path, header=True).withColumnRenamed(
     "statisticalMethodOverview", "stMethod"
 )
@@ -132,6 +62,7 @@ inhibitors = [
     "DEGRADER",
     "INVERSE AGONIST",
     "ALLOSTERIC ANTAGONIST",
+    "DISRUPTING AGENT",
 ]
 
 activators = [
@@ -141,11 +72,11 @@ activators = [
     "POSITIVE MODULATOR",
     "AGONIST",
     "SEQUESTERING AGENT",
+    "STABILISER",
 ]
 
 actionType = (
-    mecact.select("chemblIds", "actionType", "mechanismOfAction", "targets")
-    .select(
+    mecact.select(
         F.explode_outer("chemblIds").alias("drugId2"),
         "actionType",
         "mechanismOfAction",
@@ -157,7 +88,10 @@ actionType = (
         "actionType",
         "mechanismOfAction",
     )
-    .dropDuplicates()
+    .groupBy("targetId2", "drugId2")
+    .agg(
+        F.collect_set("actionType").alias("actionType"),
+    )
 )
 
 oncolabel = (
@@ -188,8 +122,8 @@ oncolabel = (
 # 2# run the transformation of the evidences datasets used.
 
 
-def directionOfEffect(
-    allEvidences,
+def new_directionOfEffect(
+    evidences,
     oncolabel,
     burden_lof,
     actionType,
@@ -198,9 +132,32 @@ def directionOfEffect(
     inhibitors,
     activators,
 ):
+    
+    all = evidences.filter(
+    F.col("datasourceId").isin(
+        [
+            "ot_genetics_portal",
+            "gene_burden",
+            "eva",
+            "eva_somatic",
+            "gene2phenotype",
+            "orphanet",
+            "cancer_gene_census",
+            "intogen",
+            "impc",
+            "chembl",
+        ]
+    )
+)
+    # Define a conditional column to represent the subset where datasourceId is "intogen"
+    condition_col = F.when(F.col("datasourceId") == "intogen", 1).otherwise(0)
+    # Define the Window specification partitioned by "targetId" and "diseaseId" and ordered by the condition column
+    window_spec = Window.partitionBy("targetId", "diseaseId").orderBy(
+        condition_col.desc()
+    )
 
     doe = (
-        allEvidences.withColumn(
+        all.withColumn(
             "beta", F.col("beta").cast("float")
         )  ## ot genetics & gene burden
         .withColumn(
@@ -220,6 +177,22 @@ def directionOfEffect(
             (actionType.drugId2 == F.col("drugId"))
             & (actionType.targetId2 == F.col("targetId")),
             "left",
+        )
+        .withColumn("inhibitors_list", F.array([F.lit(i) for i in inhibitors]))
+        .withColumn("activators_list", F.array([F.lit(i) for i in activators]))
+        .withColumn("nullColumn", F.array(F.lit(None)))
+        .withColumn(
+            "intogenAnnot",
+            F.size(
+                F.flatten(
+                    F.collect_set(
+                        F.array_except(
+                            F.col("mutatedSamples.functionalConsequenceId"),
+                            F.col("nullColumn"),
+                        )
+                    ).over(window_spec)
+                )
+            ),
         )
         ### variant Effect Column
         .withColumn(
@@ -371,19 +344,31 @@ def directionOfEffect(
             .when(
                 F.col("datasourceId") == "intogen",
                 F.when(
-                    F.arrays_overlap(
-                        F.col("mutatedSamples.functionalConsequenceId"),
-                        F.array([F.lit(i) for i in (gof)]),
+                    F.col("intogenAnnot")
+                    == 1,  ## oncogene/tummor suppressor for a given trait
+                    F.when(
+                        F.arrays_overlap(
+                            F.array_union(
+                                F.col("mutatedSamples.functionalConsequenceId"),
+                                F.array(),
+                            ),
+                            F.array([F.lit(i) for i in (gof)]),
+                        ),
+                        F.lit("GoF"),
+                    ).when(
+                        F.arrays_overlap(
+                            F.array_union(
+                                F.col("mutatedSamples.functionalConsequenceId"),
+                                F.array(),
+                            ),
+                            F.array([F.lit(i) for i in (lof)]),
+                        ),
+                        F.lit("LoF"),
                     ),
-                    F.lit("GoF"),
                 )
                 .when(
-                    F.arrays_overlap(
-                        F.col("mutatedSamples.functionalConsequenceId"),
-                        F.array([F.lit(i) for i in (lof)]),
-                    ),
-                    F.lit("LoF"),
-                )
+                    F.col("intogenAnnot") > 1, F.lit("bivalentIntogen")
+                )  ##oncogene & tumor suppressor for a given trait
                 .otherwise(F.lit("noEvaluable")),
             )
             #### impc
@@ -396,8 +381,20 @@ def directionOfEffect(
             ### chembl
             .when(
                 F.col("datasourceId") == "chembl",
-                F.when(F.col("actionType").isin(inhibitors), F.lit("LoF"))
-                .when(F.col("actionType").isin(activators), F.lit("GoF"))
+                F.when(
+                    F.size(
+                        F.array_intersect(F.col("actionType"), F.col("inhibitors_list"))
+                    )
+                    >= 1,
+                    F.lit("LoF"),
+                )
+                .when(
+                    F.size(
+                        F.array_intersect(F.col("actionType"), F.col("activators_list"))
+                    )
+                    >= 1,
+                    F.lit("GoF"),
+                )
                 .otherwise(F.lit("noEvaluable")),
             ),
         )
@@ -520,7 +517,7 @@ def directionOfEffect(
             ),
         )
         .withColumn(
-            "homogenizedVersion",
+            "homogenizedVersion_J",
             F.when(
                 (F.col("variantEffect") == "LoF")
                 & (F.col("directionOnTrait") == "risk"),
