@@ -149,12 +149,9 @@ def new_directionOfEffect(
         ]
     )
 )
-    # Define a conditional column to represent the subset where datasourceId is "intogen"
-    condition_col = F.when(F.col("datasourceId") == "intogen", 1).otherwise(0)
-    # Define the Window specification partitioned by "targetId" and "diseaseId" and ordered by the condition column
-    window_spec = Window.partitionBy("targetId", "diseaseId").orderBy(
-        condition_col.desc()
-    )
+
+    windowSpec = Window.partitionBy("targetId", "diseaseId")
+
 
     doe = (
         all.withColumn(
@@ -180,19 +177,26 @@ def new_directionOfEffect(
         )
         .withColumn("inhibitors_list", F.array([F.lit(i) for i in inhibitors]))
         .withColumn("activators_list", F.array([F.lit(i) for i in activators]))
-        .withColumn("nullColumn", F.array(F.lit(None)))
+        .withColumn(
+            "intogen_function",
+            F.when(
+                F.arrays_overlap(
+                    F.col("mutatedSamples.functionalConsequenceId"),
+                    F.array([F.lit(i) for i in (gof)]),
+                ),
+                F.lit("GoF"),
+            ).when(
+                F.arrays_overlap(
+                    F.col("mutatedSamples.functionalConsequenceId"),
+                    F.array([F.lit(i) for i in (lof)]),
+                ),
+                F.lit("LoF"),
+            )
+            # .otherwise("nodata"),
+        )
         .withColumn(
             "intogenAnnot",
-            F.size(
-                F.flatten(
-                    F.collect_set(
-                        F.array_except(
-                            F.col("mutatedSamples.functionalConsequenceId"),
-                            F.col("nullColumn"),
-                        )
-                    ).over(window_spec)
-                )
-            ),
+            F.size(F.collect_set(F.col("intogen_function")).over(windowSpec)),
         )
         ### variant Effect Column
         .withColumn(
@@ -348,19 +352,13 @@ def new_directionOfEffect(
                     == 1,  ## oncogene/tummor suppressor for a given trait
                     F.when(
                         F.arrays_overlap(
-                            F.array_union(
-                                F.col("mutatedSamples.functionalConsequenceId"),
-                                F.array(),
-                            ),
+                            F.col("mutatedSamples.functionalConsequenceId"),
                             F.array([F.lit(i) for i in (gof)]),
                         ),
                         F.lit("GoF"),
                     ).when(
                         F.arrays_overlap(
-                            F.array_union(
-                                F.col("mutatedSamples.functionalConsequenceId"),
-                                F.array(),
-                            ),
+                            F.col("mutatedSamples.functionalConsequenceId"),
                             F.array([F.lit(i) for i in (lof)]),
                         ),
                         F.lit("LoF"),
