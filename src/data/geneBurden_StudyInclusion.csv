@@ -1,0 +1,47 @@
+version:20230704,statisticalMethodOverview,count,comment,whatToDo
+1,Burden test carried out with rare missense variants including low-confidence pLOF and in-frame indels.,2254,,notGet
+4,Burden test carried out with LoF and missense variants with a MAF smaller than 0.1% and applying the burden test.,9,,notGet
+6,Burden test carried out with MTR-informed rare missense variants with a MAF smaller than 0.005%.,287,"Missense Tolerance Ratio (MTR), a measure of regional intolerance to missense variation calculated using variation from 240 000 exome and genome sequences",notGet
+9,Burden test carried out with non-synonymous recessive variants with a MAF smaller than 1%.,209,,notGet
+10,Burden test carried out with MTR-informed non synonymous variants with a MAF smaller than 0.01%.,1019,,notGet
+13,Burden test carried out with PTV and missense variants (MPC > 2) with a MAF smaller than 0.001%.,102,,notGet
+15,Burden test carried out with PTV or rare missense variants.,1599,,notGet
+19,Burden test carried out with pLOF or missense variants.,2747,,notGet
+21,Burden test carried out with rare missense variants with a MAF smaller than 0.005%.,666,,notGet
+22,Meta-analysis of burden tests carried out with PTVs and missense variants (MPC > 2) with a MAF smaller than 0.005%,10,,notGet
+24,Burden test carried out with LoF and missense variants with a MAF smaller than 0.1% and applying the variable threshold test.,4,,notGet
+26,Meta-analysis of burden tests carried out with missense de novo and LoF variants with a MAF smaller than 0.005%,56,,notGet
+30,Burden test carried out with rare synonymous variants.,636,,notGet
+35,Meta-analysis of burden tests carried out with missense variants with a MAF smaller than 0.1%,1,,notGet
+36,Meta-analysis of burden tests carried out with variants of high or moderate impact with a MAF smaller than 0.1%,1,,notGet
+37,Burden test carried out with LoF and missense variants with a MAF smaller than 0.1% and applying the Madsen and Browning test.,2,,notGet
+38,Burden test carried out with all coding region variants plus untranslated regions (UTRs) and essential splice sites and applying the Madsen and Browning test.,1,,notGet
+39,SKAT-O test carried out with variants of high or moderate impact with a MAF smaller than 1%,1,,notGet
+40,Burden test carried out with all coding region variants plus untranslated regions (UTRs) and essential splice sites and applying the burden test.,3,,notGet
+41,Meta-analysis of burden tests carried out with missense variants with a MAF smaller than 1%,1,,notGet
+45,"Burden test carried out with PTV,missense variants and in-frame indels with a MAF smaller than 0%.",1,,notGet
+8,Meta-analysis of SKAT-O tests carried out with LOF and missense variants with a MAF smaller than 1%,52,,noGet
+0,Burden test carried out with pLOF variants with a MAF smaller than 1%.,955,,get
+2,Burden test carried out with singleton pLOF variants.,182,,get
+3,Burden test carried out with singleton pLOF and deleterious missense variants.,192,What are deleterous missense variants? ,get
+5,Burden test carried out with pLOF and deleterious missense variants with a MAF smaller than 0.01%.,905,What are deleterous missense variants? ,get
+7,Burden test carried out with pLOF variants with a MAF smaller than 0.01%.,752,,get
+11,Burden test carried out with pLOF and deleterious missense variants with a MAF smaller than 1%.,13,,get
+12,Burden test carried out with pLOF and deleterious missense variants with a MAF smaller than 0.1%.,1088,,get
+14,Burden test carried out with pLOF and deleterious missense variants with a MAF smaller than 0.001%.,516,What are deleterous missense variants? ,get
+16,Burden test carried out with damaging variants with a MAF smaller than 0.01%.,1739,What are damaging variants,get
+17,Burden test carried out with PTVs with a MAF smaller than 0.1%.,1948,,get
+18,Meta-analysis of SKAT-O tests carried out with LOF variants with a MAF smaller than 1%,50,,get
+20,Burden test carried out with pLOF variants with a MAF smaller than 0.1%.,841,,get
+23,Burden test carried out with PTVs with a MAF smaller than 5%.,2379,,get
+25,Burden test carried out with MTR-informed ultra rare damaging variants (MAF ≈ 0%).,931,What are damaging variants,get
+27,Burden test carried out with pLOFs and deleterious missense variants with a MAF smaller than 1%.,1475,,get
+28,Burden test carried out with rare pLOF variants.,2264,,get
+29,Burden test carried out with ultra rare damaging variants (MAF ≈ 0%).,990,What are ultrarare damaging variants,get
+31,Burden test carried out with pLOF variants with a MAF smaller than 0.001%.,481,,get
+32,Meta-analysis of burden tests carried out with pLOF variants and with a MAF smaller than 0.1%,3,,get
+33,Burden test carried out with PTVs with a MAF smaller than 0.01%.,2,,get
+34,SKAT-O test carried out with variants predicted to be deleterious or LOF and with a MAF smaller than 1%,2,,get
+42,Burden test carried out with PTV with a MAF smaller than 0.1%.,2,,get
+43,Burden test carried out with LoF variants predicted as high confidence by LOFTEE with a MAF smaller than 0.1% and applying the variable threshold test.,1,,get
+44,Burden test carried out with LoF variants predicted as high confidence by LOFTEE with a MAF smaller than 0.1% and applying the burden test.,1,,get
