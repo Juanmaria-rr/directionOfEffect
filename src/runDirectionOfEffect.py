@@ -165,11 +165,6 @@ def new_directionOfEffect(
         )  ### eva
         .join(oncolabel, oncolabel.target_id == F.col("targetId"), "left")  ###  cgc
         .join(
-            burden_lof,
-            burden_lof.stMethod == F.col("statisticalMethodOverview"),
-            "left",
-        )  ###  gene_burden
-        .join(
             actionType,  ## chembl
             (actionType.drugId2 == F.col("drugId"))
             & (actionType.targetId2 == F.col("targetId")),
@@ -284,9 +279,9 @@ def new_directionOfEffect(
                 ),
             ).when(
                 F.col("datasourceId") == "gene_burden",
-                F.when(F.col("whatToDo") == "get", F.lit("LoF")).otherwise(
+                F.when(F.col("targetId").isNotNull(), F.lit("LoF")).otherwise(
                     F.lit("noEvaluable")
-                ),  ### son tambien no data las que tiene riesgo pero no se ensayan LoF o PT
+                )
             )
             #### Eva_germline
             .when(
