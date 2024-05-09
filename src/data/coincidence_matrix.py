@@ -1,5 +1,6 @@
 #### discrepancies matrices:
 from pyspark.sql.functions import monotonically_increasing_id as mi
+import pyspark.sql.functions as F
 
 
 def coincidence_matrix(
@@ -538,10 +539,12 @@ def coincidence_matrix(
     )
 
     return (
-        print("matrix intraDispar"),
-        matrix_intraDispar.show(),
-        print("matrix interDispar"),
-        matrix_interDispar.show(),
-        print("matrix coherents"),
-        matrix_interCoherent.show(),
+        matrix_intraDispar,
+        matrix_interDispar,
+        matrix_interCoherent,
+        matrix_oneCellCoherent_onlyIntraCoherent,
+        matrix_interDispar_onlyIntraCoherentOneCell,
+        matrix_interDispar_onlyIntraCoherent,
+        matrix_interCoherent_onlyIntraCoherent,
+        matrix_total_onlyIntraCoherent,
     )
