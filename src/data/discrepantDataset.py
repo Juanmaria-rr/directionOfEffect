@@ -134,7 +134,7 @@ def discrepant_dataset(discrepanficier, evidences):
                 Window.partitionBy("targetId", "diseaseId")
             ),
         )
-        .groupBy("targetId", "diseaseId", "diseaseFromSource", "datasources")
+        .groupBy("targetId", "diseaseId", "datasources")
         .pivot("homogenized")
         .agg(F.count("targetId"))
     )
