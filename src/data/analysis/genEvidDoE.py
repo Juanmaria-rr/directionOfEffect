@@ -642,44 +642,6 @@ columns_dataset = ["LoF_protect", "GoF_protect", "LoF_risk", "GoF_risk", "eviden
 columns = ["GoF_risk", "LoF_protect", "LoF_risk", "GoF_protect"]
 terms = ["noEvaluable", "bivalent_risk", "null", "dispar"]
 
-sincgc = [
-    "gene_burden",
-    "intogen",
-    "eva",
-    "eva_somatic",
-    "ot_genetics_portal",
-    "impc",
-    "orphanet",
-    "gene2phenotype",
-]
-
-germline = [
-    "gene_burden",
-    "eva",
-    "ot_genetics_portal",
-    "impc",
-    "orphanet",
-    "gene2phenotype",
-]
-
-somatic = ["intogen", "cancer_gene_census", "eva_somatic"]
-
-datasource_list = [
-    "gene_burden",
-    "intogen",
-    "cancer_gene_census",
-    "eva",
-    "eva_somatic",
-    "ot_genetics_portal",
-    "impc",
-    "orphanet",
-    "gene2phenotype",
-    "chembl",
-    "WOcgc",
-    "somatic",
-    "germline",
-]
-
 genEvidDataset = (
     prueba_assessment.filter(F.col("datasourceId") != "chembl")  #### checked 31.05.2023
     .groupBy("targetId", "diseaseId")
@@ -755,15 +717,6 @@ chembl_trials = (
     .groupBy("targetId", "diseaseId")
     .agg(F.max(F.col("clinicalPhase")).alias("maxClinPhase"))
 )
-
-# 2## join that datasets with either chembl and gene burden to see how is the direction of effect
-#####
-# function for interpreting DoE and coherencies/discrepancies
-#####
-
-########
-## review from here
-########
 
 
 def discrepancifier(df):
@@ -969,7 +922,7 @@ def full_analysis_propagation(
     prueba_assessment, analysisDatasources, analysis_chembl, terminated_array, diseaseTA
 ):
     return (
-        analysis_nonPropagated(prueba_assessment, analysisDatasources)
+        analysis_propagated(prueba_assessment, analysisDatasources)
         .join(
             analysis_chembl.selectExpr(
                 "targetId",
@@ -1243,8 +1196,17 @@ print("starting dictionaries at", c)
 dfs_dict = {}  ### checked and changed on 01.06.2023
 dfs_dict_propag = {}
 
-datasources_analysis = ["ot_genetics_portal"]
 
+wocgc_list = [
+    "gene_burden",
+    "intogen",
+    "eva",
+    "eva_somatic",
+    "ot_genetics_portal",
+    "impc",
+    "orphanet",
+    "gene2phenotype",
+]
 datasource_list = [
     "gene_burden",
     "intogen",
@@ -1261,7 +1223,7 @@ datasource_list = [
     "germline",
 ]
 
-germline = [
+germline_list = [
     "gene_burden",
     "eva",
     "ot_genetics_portal",
@@ -1270,7 +1232,7 @@ germline = [
     "gene2phenotype",
 ]
 
-somatic = ["intogen", "cancer_gene_census", "eva_somatic"]
+somatic_list = ["intogen", "cancer_gene_census", "eva_somatic"]
 
 # assessment = prueba_assessment.filter(F.col("datasourceId").isin(datasources_analysis))
 
@@ -1278,45 +1240,35 @@ somatic = ["intogen", "cancer_gene_census", "eva_somatic"]
 def dataset_builder(
     prueba_assessment, value, analysis_chembl, terminated_array, diseaseTA
 ):
+    nonPropagated = full_analysis_noPropagation(
+        prueba_assessment, value, analysis_chembl, terminated_array, diseaseTA
+    )
+    propagated = full_analysis_propagation(
+        prueba_assessment, value, analysis_chembl, terminated_array, diseaseTA
+    )
     return (
-        ### propagation All, Others, Other+null & Oncology
+        # Non propagation
         ## All
-        full_analysis_propagation(
-            prueba_assessment, value, analysis_chembl, terminated_array, diseaseTA
-        ),
+        nonPropagated,
         ## Other
-        full_analysis_propagation(
-            prueba_assessment, value, analysis_chembl, terminated_array, diseaseTA
-        ).filter(F.col("taLabelSimple") == "Other"),
+        nonPropagated.filter(F.col("taLabelSimple") == "Other"),
         ## Other&Null
-        full_analysis_propagation(
-            prueba_assessment, value, analysis_chembl, terminated_array, diseaseTA
-        ).filter(
+        nonPropagated.filter(
             (F.col("taLabelSimple").isNull()) | (F.col("taLabelSimple") == "Other")
         ),
         ## Oncology
-        full_analysis_propagation(
-            prueba_assessment, value, analysis_chembl, terminated_array, diseaseTA
-        ).filter(F.col("taLabelSimple") == "Oncology"),
-        ### Non propagation All, Others, Other+null & Oncology
+        nonPropagated.filter(F.col("taLabelSimple") == "Oncology"),
+        # Propagation
         ## All
-        full_analysis_noPropagation(
-            prueba_assessment, value, analysis_chembl, terminated_array, diseaseTA
-        ),
+        propagated,
         ## Other
-        full_analysis_noPropagation(
-            prueba_assessment, value, analysis_chembl, terminated_array, diseaseTA
-        ).filter(F.col("taLabelSimple") == "Other"),
+        propagated.filter(F.col("taLabelSimple") == "Other"),
         ## Other&Null
-        full_analysis_noPropagation(
-            prueba_assessment, value, analysis_chembl, terminated_array, diseaseTA
-        ).filter(
+        propagated.filter(
             (F.col("taLabelSimple").isNull()) | (F.col("taLabelSimple") == "Other")
         ),
         ## Oncology
-        full_analysis_noPropagation(
-            prueba_assessment, value, analysis_chembl, terminated_array, diseaseTA
-        ).filter(F.col("taLabelSimple") == "Oncology"),
+        propagated.filter(F.col("taLabelSimple") == "Oncology"),
     )
 
 
@@ -1333,7 +1285,7 @@ for value in datasource_list:
             dfs_dict_propag[f"df_{value}_OtherNull_propag"],
             dfs_dict_propag[f"df_{value}_Oncology_propag"],
         ) = dataset_builder(
-            prueba_assessment, value, analysis_chembl, terminated_array, diseaseTA
+            prueba_assessment, wocgc_list, analysis_chembl, terminated_array, diseaseTA
         )
     elif value == "germline":
         (
@@ -1346,7 +1298,11 @@ for value in datasource_list:
             dfs_dict_propag[f"df_{value}_OtherNull_propag"],
             dfs_dict_propag[f"df_{value}_Oncology_propag"],
         ) = dataset_builder(
-            prueba_assessment, value, analysis_chembl, terminated_array, diseaseTA
+            prueba_assessment,
+            germline_list,
+            analysis_chembl,
+            terminated_array,
+            diseaseTA,
         )
 
     elif value == "somatic":
@@ -1360,7 +1316,11 @@ for value in datasource_list:
             dfs_dict_propag[f"df_{value}_OtherNull_propag"],
             dfs_dict_propag[f"df_{value}_Oncology_propag"],
         ) = dataset_builder(
-            prueba_assessment, value, analysis_chembl, terminated_array, diseaseTA
+            prueba_assessment,
+            somatic_list,
+            analysis_chembl,
+            terminated_array,
+            diseaseTA,
         )
 
     else:
@@ -1406,21 +1366,6 @@ def comparisons_df() -> list:
     return comparisons.join(predictions, how="full").collect()
 
 
-full_data = spark.createDataFrame(
-    data=[
-        ("yes", "yes"),
-        ("yes", "no"),
-        ("no", "yes"),
-        ("no", "no"),
-    ],
-    schema=StructType(
-        [
-            StructField("prediction", StringType(), True),
-            StructField("comparison", StringType(), True),
-        ]
-    ),
-)
-
 def aggregations_original(
     df,
     data,
@@ -1436,7 +1381,7 @@ def aggregations_original(
     wPredictionComparison = Window.partitionBy(comparisonColumn, predictionColumn)
 
     uniqIds = df.select("targetId", "diseaseId").distinct().count()
-    ### los datos que dan evidencia genetica
+
     out = (
         df.withColumn("comparisonType", F.lit(comparisonType))
         .withColumn("predictionType", F.lit(predictionType))
@@ -1545,7 +1490,22 @@ import re
 import pandas as pd
 import numpy as np
 from scipy.stats import fisher_exact
-from scipy.stats.contingency import odds_ratio
+from scipy.stats.contingency import odds_ratio, relative_risk
+
+full_data = spark.createDataFrame(
+    data=[
+        ("yes", "yes"),
+        ("yes", "no"),
+        ("no", "yes"),
+        ("no", "no"),
+    ],
+    schema=StructType(
+        [
+            StructField("prediction", StringType(), True),
+            StructField("comparison", StringType(), True),
+        ]
+    ),
+)
 
 
 def convertTuple(tup):
@@ -1558,15 +1518,33 @@ def relative_success(array1):
 
     ### take numbers from array
     a, b = array1[0]
-    total_expo = a + b
     c, d = array1[1]
+    ####
+    """
+    Where zeros cause problems with computation of the relative risk or its standard error,
+    0.5 is added to all cells (a, b, c, d) (Pagano & Gauvreau, 2000; Deeks & Higgins, 2010).
+    """
+    total_expo = a + b
     total_noExpo = c + d
-    ### calculate relative success
-    relative_success = relative_risk(a, total_expo, c, total_noExpo)
-    ### calculate confidence intervals
-    rs_ci = relative_risk(a, total_expo, c, total_noExpo).confidence_interval(
-        confidence_level=0.95
-    )
+    ### for cases when total_expo/total_noExpo = 0,
+    ### we sum 1 to avoid errors an get at least 0 in the %
+    if any(t == 0 for t in [total_expo, total_noExpo]):
+        total_expo = total_expo + 1
+        total_noExpo = total_noExpo + 1
+        ### calculate relative success
+        relative_success = relative_risk(a, total_expo, c, total_noExpo)
+        ### calculate confidence intervals
+        rs_ci = relative_risk(a, total_expo, c, total_noExpo).confidence_interval(
+            confidence_level=0.95
+        )
+    else:
+
+        ### calculate relative success
+        relative_success = relative_risk(a, total_expo, c, total_noExpo)
+        ### calculate confidence intervals
+        rs_ci = relative_risk(a, total_expo, c, total_noExpo).confidence_interval(
+            confidence_level=0.95
+        )
 
     return relative_success.relative_risk, rs_ci
 
@@ -1661,7 +1639,7 @@ for path in listado:
             path,
         ]
     )
-
+    print(path)
 # Convert the results to a pandas DataFrame
 df = pd.DataFrame(
     results,
