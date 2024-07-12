@@ -1,3 +1,6 @@
+## taken from https://stackoverflow.com/questions/45629781/drop-if-all-entries-in-a-spark-dataframes-specific-column-is-null
+## drop columns with all values = Null
+
 def drop_fully_null_columns(df, but_keep_these=[]):
     """Drops DataFrame columns that are fully null
     (i.e. the maximum value is null)
