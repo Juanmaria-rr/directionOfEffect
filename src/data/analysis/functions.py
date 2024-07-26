@@ -1,3 +1,5 @@
+import pyspark.sql.functions as F
+
 def discrepancifier(df):
     """
     detect discrepancies per row where there are the four
