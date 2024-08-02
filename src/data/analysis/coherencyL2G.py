@@ -676,7 +676,7 @@ def benchmarkOT(discrepancifier, otGenetics, metric):
                     for a, x in dict_comb.items()
                     for n in list_l2g
                 ]
-                if metric == "max_maxL2GScore"
+                if metric == "max_L2GScore"
                 else [
                     F.when((F.col(a) == "coherent") & (F.col(x) <= n), F.lit("yes"))
                     .otherwise(F.lit("no"))
@@ -901,7 +901,7 @@ full_data = spark.createDataFrame(
 #### update the dictionary dfs with other columns included in the analysis
 key_list = [
     "hasGeneticEvidence",
-    "OneCell",
+    "oneCell",
     "diagonal",
     "max_L2GScore",
     "min_distance_ranking",
@@ -1007,7 +1007,7 @@ for path in listado:
             dimension,
             phase,
             round(float(resX.split(",")[0]), 2),
-            round(float(resX.split(",")[1]), 8),
+            round(float(resX.split(",")[1]), 20),
             round(float(resx_CI.split(",")[0]), 2),
             round(float(resx_CI.split(",")[1]), 2),
             str(total),
