@@ -1,10 +1,48 @@
 #### discrepancies matrices:
-from pyspark.sql.functions import monotonically_increasing_id as mi
+from DoEAssessment import directionOfEffect
+from functions import discrepancifier
+from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
+
+spark = SparkSession.builder.getOrCreate()
+
+platform_v = "24.06"
+
+doe_sources = [
+    "ot_genetics_portal",
+    "gene_burden",
+    "eva",
+    "eva_somatic",
+    "gene2phenotype",
+    "orphanet",
+    "cancer_gene_census",
+    "intogen",
+    "impc",
+    "chembl",
+]
+
+evidences = spark.read.parquet(
+    f"gs://open-targets-data-releases/{platform_v}/output/etl/parquet/evidence"
+)
+### take only the ones with datasources for DoE
+evidences = evidences.filter(F.col("datasourceId").isin(doe_sources))
+
+replacement_dict = {
+    "gene_burden": "GeneBurden",
+    "chembl": "ChEMBL",
+    "intogen": "Intogen",
+    "orphanet": "Orphanet",
+    "cancer_gene_census": "CancerGeneCensus",
+    "eva": "EvaGermline",
+    "gene2phenotype": "Gene2Phenotype",
+    "eva_somatic": "EvaSomatic",
+    "ot_genetics_portal": "OtGenetics",
+    "impc": "IMPC",
+}
 
 
 def coincidence_matrix(
-    evidences_JR,
+    evidences,
 ):
     """Build a coincidence matrix of target disease associations between the datasources
     (these datasources are defined previously in the "evidences file passed to this function)
@@ -22,158 +60,35 @@ def coincidence_matrix(
     columns = ["GoF_risk", "LoF_protect", "LoF_risk", "GoF_protect"]
 
     dataset1 = (  #### unique identifier and global coherency
-        prueba_assessment.filter((F.col("homogenized")).isin(terms) == False)
-        .groupBy("targetId", "diseaseId")
-        .pivot("homogenized")
-        .agg(F.count("targetId"))
-        .select(
-            F.col("targetId"),
-            # F.col("datasourceId"),
-            F.col("diseaseId"),
-            *(F.col(c).cast("int").alias(c) for c in columns)
-        )
-        .withColumn(
-            "coherency_inter",
-            F.when(
-                ((F.col("GoF_risk").isNotNull()) & (F.col("LoF_risk").isNotNull())),
-                F.lit("dispar"),
-            )
-            .when(
-                ((F.col("LoF_protect").isNotNull()) & (F.col("LoF_risk").isNotNull())),
-                F.lit("dispar"),
-            )
-            .when(
-                ((F.col("GoF_protect").isNotNull()) & (F.col("GoF_risk").isNotNull())),
-                F.lit("dispar"),
-            )
-            .when(
-                (
-                    (F.col("GoF_protect").isNotNull())
-                    & (F.col("LoF_protect").isNotNull())
-                ),
-                F.lit("dispar"),
-            )
-            .otherwise(F.lit("coherent")),
-        )
-        .withColumn(
-            "coherency_onecell",
-            F.when(
-                F.lit("LoF_risk").isNotNull()
-                & (
-                    (F.col("LoF_protect").isNull())
-                    & (F.col("GoF_risk").isNull())
-                    & (F.col("GoF_protect").isNull())
-                ),
-                F.lit("coherent"),
-            )
-            .when(
-                F.lit("GoF_risk").isNotNull()
-                & (
-                    (F.col("LoF_protect").isNull())
-                    & (F.col("LoF_risk").isNull())
-                    & (F.col("GoF_protect").isNull())
-                ),
-                F.lit("coherent"),
-            )
-            .when(
-                F.lit("LoF_protect").isNotNull()
-                & (
-                    (F.col("LoF_risk").isNull())
-                    & (F.col("GoF_risk").isNull())
-                    & (F.col("GoF_protect").isNull())
-                ),
-                F.lit("coherent"),
-            )
-            .when(
-                F.lit("GoF_protect").isNotNull()
-                & (
-                    (F.col("LoF_protect").isNull())
-                    & (F.col("GoF_risk").isNull())
-                    & (F.col("LoF_risk").isNull())
-                ),
-                F.lit("coherent"),
-            )
-            .otherwise(F.lit("dispar")),
+        discrepancifier(
+            directionOfEffect(evidences, platform_v)
+            .withColumn("datasourceAll", F.lit("All"))
+            .withColumn("niceName", F.col("datasourceId"))
+            .replace(replacement_dict, subset=["niceName"])
+            .filter((F.col("homogenized")).isin(terms) == False)
+            .groupBy("targetId", "diseaseId")
+            .pivot("homogenized")
+            .agg(F.count("targetId"))
         )
         .withColumn("id", F.monotonically_increasing_id())
+        .withColumnRenamed("coherencyDiagonal", "coherency_inter")
+        .withColumnRenamed("coherencyOneCell", "coherency_onecell")
     ).persist()
 
     ### coherency intra datasource
-
-    dataset2 = (  ## coherency per datasource
-        prueba_assessment.filter((F.col("homogenized")).isin(terms) == False)
-        .groupBy("targetId", "diseaseId", "datasourceId")
-        .pivot("homogenized")
-        .agg(F.count("targetId"))
-        .select(
-            F.col("targetId"),
-            F.col("datasourceId"),
-            F.col("diseaseId"),
-            *(F.col(c).cast("int").alias(c) for c in columns)
+    dataset2 = (
+        discrepancifier(
+            directionOfEffect(evidences, platform_v)
+            .withColumn("datasourceAll", F.lit("All"))
+            .withColumn("niceName", F.col("datasourceId"))
+            .replace(replacement_dict, subset=["niceName"])
+            .filter((F.col("homogenized")).isin(terms) == False)
+            .groupBy("targetId", "diseaseId", "datasourceId")
+            .pivot("homogenized")
+            .agg(F.count("targetId"))
         )
-        .withColumn(
-            "coherency_intra",
-            F.when(
-                ((F.col("GoF_risk").isNotNull()) & (F.col("LoF_risk").isNotNull())),
-                F.lit("dispar"),
-            )
-            .when(
-                ((F.col("LoF_protect").isNotNull()) & (F.col("LoF_risk").isNotNull())),
-                F.lit("dispar"),
-            )
-            .when(
-                ((F.col("GoF_protect").isNotNull()) & (F.col("GoF_risk").isNotNull())),
-                F.lit("dispar"),
-            )
-            .when(
-                (
-                    (F.col("GoF_protect").isNotNull())
-                    & (F.col("LoF_protect").isNotNull())
-                ),
-                F.lit("dispar"),
-            )
-            .otherwise(F.lit("coherent")),
-        )
-        .withColumn(
-            "coherency_intra_OneCell",
-            F.when(
-                F.lit("LoF_risk").isNotNull()
-                & (
-                    (F.col("LoF_protect").isNull())
-                    & (F.col("GoF_risk").isNull())
-                    & (F.col("GoF_protect").isNull())
-                ),
-                F.lit("coherent"),
-            )
-            .when(
-                F.lit("GoF_risk").isNotNull()
-                & (
-                    (F.col("LoF_protect").isNull())
-                    & (F.col("LoF_risk").isNull())
-                    & (F.col("GoF_protect").isNull())
-                ),
-                F.lit("coherent"),
-            )
-            .when(
-                F.lit("LoF_protect").isNotNull()
-                & (
-                    (F.col("LoF_risk").isNull())
-                    & (F.col("GoF_risk").isNull())
-                    & (F.col("GoF_protect").isNull())
-                ),
-                F.lit("coherent"),
-            )
-            .when(
-                F.lit("GoF_protect").isNotNull()
-                & (
-                    (F.col("LoF_protect").isNull())
-                    & (F.col("GoF_risk").isNull())
-                    & (F.col("LoF_risk").isNull())
-                ),
-                F.lit("coherent"),
-            )
-            .otherwise(F.lit("dispar")),
-        )
+        .withColumnRenamed("coherencyDiagonal", "coherency_intra")
+        .withColumnRenamed("coherencyOneCell", "coherency_intra_OneCell")
     ).persist()
 
     ### two diferent dataset 3 depending on coherency type
