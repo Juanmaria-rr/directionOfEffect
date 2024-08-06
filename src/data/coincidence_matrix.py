@@ -41,9 +41,7 @@ replacement_dict = {
 }
 
 
-def coincidence_matrix(
-    evidences,
-):
+def coincidence_matrix(evidences, platform_v, replacement_dict):
     """Build a coincidence matrix of target disease associations between the datasources
     (these datasources are defined previously in the "evidences file passed to this function)
 
