@@ -222,21 +222,29 @@ def coincidence_matrix(evidences, platform_v, replacement_dict):
             "nrs_coherentInter",
             F.size(
                 F.array_intersect(F.col("coherent_inter"), F.col("coherent_inter_y"))
-            )
-        ).withColumn("nrs_Total", ((F.col"nrs_disparInter") + F.col("nrs_coherentInter"))
-        ).withColumn(
+            ),
+        )
+        .withColumn(
+            "nrs_Total", (F.col("nrs_disparInter") + F.col("nrs_coherentInter"))
+        )
+        .withColumn(
             "interCoherencyPercentage",
-            (F.col("nrs_coherentInter") / F.col("nrs_Total") * 100)))
-    
-    matrix_interCoherent=(dataset_matrix_interCoherent.groupBy("datasourceId_x")
+            (F.col("nrs_coherentInter") / F.col("nrs_Total") * 100),
+        )
+    )
+
+    matrix_interCoherent = (
+        dataset_matrix_interCoherent.groupBy("datasourceId_x")
         .pivot("datasourceId_y")
         .agg(F.first(F.col("nrs_coherentInter")))  #### change depending on interest
     )
-    matrix_interCoherentPercentage=(dataset_matrix_interCoherent.groupBy("datasourceId_x")
+    matrix_interCoherentPercentage = (
+        dataset_matrix_interCoherent.groupBy("datasourceId_x")
         .pivot("datasourceId_y")
-        .agg(F.first(F.col("interCoherencyPercentage")))  #### change depending on interest
+        .agg(
+            F.first(F.col("interCoherencyPercentage"))
+        )  #### change depending on interest
     )
-
 
     #### prepare dataset for one Cell coherencies
     dataset3OneCell = (
@@ -281,23 +289,22 @@ def coincidence_matrix(evidences, platform_v, replacement_dict):
         .withColumn(
             "percentageCoherencyInter",
             (F.col("nrs_coherentInter") / F.col("nrs_Total") * 100),
-        )).persist()
-    
-    matrix_oneCellCoherent_onlyIntraCoherent = (dataset_matrix_oneCellCoherent_onlyIntraCoherent. 
-        .groupBy("datasourceId_x")
+        )
+    ).persist()
+
+    matrix_oneCellCoherent_onlyIntraCoherent = (
+        dataset_matrix_oneCellCoherent_onlyIntraCoherent.groupBy("datasourceId_x")
         .pivot("datasourceId_y")
-        .agg(
-            F.first(F.col("nrs_coherentInter"))
-        )  #### change depending on interest
-        ).persist()
-    
-    matrix_oneCellCoherent_onlyIntraCoherentPercentage = (dataset_matrix_oneCellCoherent_onlyIntraCoherent. 
-        .groupBy("datasourceId_x")
+        .agg(F.first(F.col("nrs_coherentInter")))  #### change depending on interest
+    ).persist()
+
+    matrix_oneCellCoherent_onlyIntraCoherentPercentage = (
+        dataset_matrix_oneCellCoherent_onlyIntraCoherent.groupBy("datasourceId_x")
         .pivot("datasourceId_y")
         .agg(
             F.first(F.col("percentageCoherencyInter"))
         )  #### change depending on interest
-        ).persist()
+    ).persist()
 
     ### the next are matrix combining coherency criteria and intradatasource disparities:
     matrix_interDispar_onlyIntraCoherentOneCell = (
@@ -457,9 +464,9 @@ def coincidence_matrix(evidences, platform_v, replacement_dict):
         matrix_intraDispar,  ### intradatasource disparities
         matrix_interDispar,  ### using diagonal criteria, from coherent TD per DS, dispar TD shared between DS
         matrix_interCoherent,  ### using diagonal criteria, from coherent TD per DS, coherent TD shared between DS
-        matrix_interCoherentPercentage, ### same as above but % of coherent across all TD shared when being coherent intra DS
+        matrix_interCoherentPercentage,  ### same as above but % of coherent across all TD shared when being coherent intra DS
         matrix_oneCellCoherent_onlyIntraCoherent,  ### using one cell criteria, from coherent TD per DS, coherent TD shared between DS
-        matrix_oneCellCoherent_onlyIntraCoherentPercentage, ### same as above but % of coherent TD over dispar between DS, when being coherent intra DS
+        matrix_oneCellCoherent_onlyIntraCoherentPercentage,  ### same as above but % of coherent TD over dispar between DS, when being coherent intra DS
         matrix_interDispar_onlyIntraCoherentOneCell,  ### using one cell criteria to check intra coherency, N of TD dispar shared between DS
         matrix_interDispar_onlyIntraCoherent,  #### using diagonal criteria to check intra coherency, N of TD dispar shared between DS
         matrix_interCoherent_onlyIntraCoherent,  #### using diagonal criteria, percentage of shared T-D between datasources that are coherent
