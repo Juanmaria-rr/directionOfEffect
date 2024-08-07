@@ -109,8 +109,32 @@ def coincidence_matrix(evidences, platform_v, replacement_dict):
         )
     ).persist()
 
-    #### matrix of intradatasource disparities:
+    datasetAllShared = (
+        dataset2.drop("noEvaluable")
+        .join(dataset1.drop("noEvaluable"), on=["targetId", "diseaseId"], how="left")
+        .drop(*columns, "count")
+    ).persist()
 
+    #### matrix of Total T-D shared between datasources
+    allSharedTD = (
+        datasetAllShared.groupBy("datasourceId")
+        .agg(F.collect_set(F.col("id")).alias("ids"))
+        .selectExpr("datasourceId as datasourceId_x", "ids as ids_x")
+        .join(
+            datasetAllShared.groupBy("datasourceId")
+            .agg(F.collect_set(F.col("id")).alias("ids"))
+            .selectExpr("datasourceId as datasourceId_y", "ids as ids_y")
+        )
+        .withColumn(
+            "sharedTD",
+            F.size(F.array_intersect(F.col("ids_x"), F.col("ids_y"))),
+        )
+        .groupBy("datasourceId_x")
+        .pivot("datasourceId_y")
+        .agg(F.first(F.col("sharedTD")))
+    ).persist()
+
+    #### matrix of intradatasource disparities:
     matrix_intraDispar = (
         dataset4.groupBy("datasourceId")
         .pivot("coherency_intra")
@@ -452,6 +476,7 @@ def coincidence_matrix(evidences, platform_v, replacement_dict):
     )
 
     return (
+        allSharedTD,
         matrix_intraDispar,
         matrix_interDispar,
         matrix_interCoherent,
