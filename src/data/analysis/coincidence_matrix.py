@@ -24,7 +24,7 @@ doe_sources = [
 evidences_all = spark.read.parquet(
     f"gs://open-targets-data-releases/{platform_v}/output/etl/parquet/evidence"
 )
-### 
+###
 replacement_dict = {
     "gene_burden": "GeneBurden",
     "chembl": "ChEMBL",
@@ -39,8 +39,9 @@ replacement_dict = {
 }
 
 ### take only the ones with datasources for DoE
-evidences = evidences_all.filter(F.col("datasourceId").isin(doe_sources)
-).replace(replacement_dict, subset=["niceName"])
+evidences = evidences_all.filter(F.col("datasourceId").isin(doe_sources)).replace(
+    replacement_dict, subset=["datasourceId"]
+)
 
 
 def coincidence_matrix(evidences, platform_v, replacement_dict):
