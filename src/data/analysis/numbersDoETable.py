@@ -93,11 +93,15 @@ def datasets_numbers(evidences, platform_v, replacement_dict):
 
     whole = (
         prueba_assessment.filter(F.col("homogenized") != "noEvaluable")
+        .groupBy("targetId", "diseaseId", "niceName", "homogenized")
+        .count()
         .groupBy("niceName")
         .pivot("homogenized")
         .count()
         .union(
             prueba_assessment.filter(F.col("homogenized") != "noEvaluable")
+            .groupBy("targetId", "diseaseId", "datasourceAll", "homogenized")
+            .count()
             .groupBy("datasourceAll")
             .pivot("homogenized")
             .count()
@@ -107,13 +111,19 @@ def datasets_numbers(evidences, platform_v, replacement_dict):
         .fillna(0)
     ).withColumn("facet", F.lit("whole"))
 
+    ### discretizer function
     qds = QuantileDiscretizer(
         numBuckets=10,
         inputCol="count",
         outputCol="deciles",
     )
 
-    df = trait.union(function).union(whole)
-    result = qds.fit(df).transform(df).presist()
+    #### apply one by one the discretizer function
+    trait_qt = qds.fit(trait).transform(trait)
+    function_qt = qds.fit(function).transform(function)
+    whole_qt = qds.fit(whole).transform(whole)
+
+    ### union of dfs
+    result = trait_qt.union(function_qt).union(whole_qt).persist()
 
     return result
