@@ -154,3 +154,52 @@ def relative_success(array1):
         )
 
     return relative_success.relative_risk, rs_ci
+
+
+def spreadSheetFormatter(df):
+    from pyspark.sql.functions import format_number
+    from pyspark.sql.types import (
+        DoubleType,
+    )
+
+    new_df = (
+        df.withColumn(
+            "significant",
+            F.when(F.col("pValue") < 0.0001, F.lit("****"))
+            .when((F.col("pValue") >= 0.0001) & (F.col("pValue") < 0.001), F.lit("***"))
+            .when((F.col("pValue") >= 0.001) & (F.col("pValue") < 0.01), F.lit("**"))
+            .when((F.col("pValue") >= 0.01) & (F.col("pValue") < 0.05), F.lit("*"))
+            .when(F.col("pValue") >= 0.05, F.lit("ns")),
+        )
+        .withColumn(
+            "writeFigure",
+            F.concat(
+                F.round(F.col("oddsRatio"), 2),
+                F.lit(" "),
+                F.lit("("),
+                F.round(F.col("lowerInterval"), 2),
+                F.lit("-"),
+                F.round(F.col("upperInterval"), 2),
+                F.lit(")"),
+            ),
+        )
+        .withColumn("val1", F.regexp_extract("values", regex, 1))
+        .withColumn("val2", F.regexp_extract("values", regex, 2))
+        .withColumn("val3", F.regexp_extract("values", regex, 3))
+        .withColumn("val4", F.regexp_extract("values", regex, 4))
+        .withColumn("numerator", (F.col("val1") + F.col("val2")).cast("int"))
+        .withColumn("denominator", (F.col("val3") + F.col("val4")).cast("int"))
+        .withColumn("pValue", F.col("pValue").cast(DoubleType()))
+        .withColumn(
+            "pValue_formatted",
+            F.when(
+                F.col("pValue") < 0.0001, F.col("pValue").cast("string")
+            )  # Check if value matches scientific notation range
+            # .when(F.col("pValue") < 0.05, F.format_number(F.col("pValue"), 2))
+            .otherwise(F.format_number(F.col("pValue"), 4)),
+        )
+        .withColumn(
+            "numDen", F.concat_ws("/", F.col("numerator"), F.col("denominator"))
+        )
+    )
+    return new_df
