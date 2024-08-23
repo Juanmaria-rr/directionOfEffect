@@ -847,6 +847,21 @@ uniqueBetas_analyse = (
             F.lit("yes"),
         ).otherwise(F.lit("no")),
     )
+    .withColumn("allStudiesDoE", 
+        F.when((F.col("right_study_id").isNotNull()) & (F.col("doeCoherent")=="yes"), F.lit("yes")).otherwise(F.lit("no"))
+    )
+    .withColumn("allTissuesDoE",
+        F.when((F.col("right_bio_feature").isNotNull()) & (F.col("doeCoherent")=="yes"), F.lit("yes")).otherwise(F.lit("no"))
+    )
+    .withColumn("allQtlDoE",
+        F.when((F.col("right_type").isNotNull()) & (F.col("doeCoherent")=="yes"), F.lit("yes")).otherwise(F.lit("no"))
+    )
+    .withColumn("allBetaAssessedDoE",
+        F.when((F.col("beta_assessed").isin(["gof","lof"])) & (F.col("doeCoherent")=="yes"), F.lit("yes")).otherwise(F.lit("no"))
+    )
+    .withColumn("allTherapyAreas",
+        F.when((F.col("therapyArea").isin(["gof","lof"])) & (F.col("doeCoherent")=="yes"), F.lit("yes")).otherwise(F.lit("no"))
+    )
     .drop("targetType")  ### remove nonsense columns for this
     .filter(
         (F.col("coherency_chembl").isNotNull())
@@ -892,7 +907,11 @@ def convertTuple(tup):
     return st
 
 #### create list of key and values to identify groups and column names to analyse
-key_list = [
+key_list = ["allStudiesDoE",
+    "allTissuesDoE",
+    "allQtlDoE",
+    "allBetaAssessedDoE",
+    "allTherapyAreas",
     "coloc>_60",
     "coloc>_80",
     "coloc>_90",
@@ -913,12 +932,17 @@ key_list = [
     "doe&matchQtlRBFrelevantToDisease",
 ]
 value_list = [
+    "right_study_id",
+    "right_bio_feature",
+    "right_type",
+    "beta_assessed",
+    "therapyArea",
     "coloc",
     "coloc",
     "coloc",
     "coloc",
     "location",
-    "rght_tissue",
+    "right_tissue",
     "right_tissue",
     "right_tissue",
     "doeGlobal",
