@@ -183,10 +183,10 @@ def spreadSheetFormatter(df):
                 F.lit(")"),
             ),
         )
-        .withColumn("val1", F.regexp_extract("values", regex, 1))
-        .withColumn("val2", F.regexp_extract("values", regex, 2))
-        .withColumn("val3", F.regexp_extract("values", regex, 3))
-        .withColumn("val4", F.regexp_extract("values", regex, 4))
+        .withColumn("value_1", F.col("values").getItem(0).getItem(0))
+        .withColumn("value_2", F.col("values").getItem(0).getItem(1))
+        .withColumn("value_3", F.col("values").getItem(1).getItem(0))
+        .withColumn("value_4", F.col("values").getItem(1).getItem(1))
         .withColumn("numerator", (F.col("val1") + F.col("val2")).cast("int"))
         .withColumn("denominator", (F.col("val3") + F.col("val4")).cast("int"))
         .withColumn("pValue", F.col("pValue").cast(DoubleType()))
