@@ -187,8 +187,8 @@ def spreadSheetFormatter(df):
         .withColumn("value_2", F.col("values").getItem(0).getItem(1))
         .withColumn("value_3", F.col("values").getItem(1).getItem(0))
         .withColumn("value_4", F.col("values").getItem(1).getItem(1))
-        .withColumn("numerator", (F.col("val1") + F.col("val2")).cast("int"))
-        .withColumn("denominator", (F.col("val3") + F.col("val4")).cast("int"))
+        .withColumn("numerator", (F.col("value_1") + F.col("value_2")).cast("int"))
+        .withColumn("denominator", (F.col("value_3") + F.col("value_4")).cast("int"))
         .withColumn("pValue", F.col("pValue").cast(DoubleType()))
         .withColumn(
             "pValue_formatted",
