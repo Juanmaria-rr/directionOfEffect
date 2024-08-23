@@ -891,7 +891,7 @@ def convertTuple(tup):
     st = ",".join(map(str, tup))
     return st
 
-
+#### create list of key and values to identify groups and column names to analyse
 key_list = [
     "coloc>_60",
     "coloc>_80",
@@ -936,11 +936,12 @@ value_list = [
 
 def comparisons_df(dfs, key_list, value_list) -> list:
     """Return list of all comparisons to be used in the analysis"""
-
+    ## define the list to have all the columns no analyse and their comparison identification
     toAnalysis = []
+    ### include key and values from columns to analysed done by dictionary
     toAnalysis = [[key, x] for key, x in dfs.items()]
     if len(key_list) == len(value_list):
-        # Pair the elements from the two lists together
+        # Pair the elements from the previous two lists together
         toAnalysis.extend(
             [[key, custom_name] for key, custom_name in zip(key_list, value_list)]
         )
@@ -954,7 +955,7 @@ def comparisons_df(dfs, key_list, value_list) -> list:
         ]
     )
 
-    comparisons = spark.createDataFrame(l_studies, schema=schema)
+    comparisons = spark.createDataFrame(toAnalysis, schema=schema)
     ### include all the columns as predictor
 
     predictions = spark.createDataFrame(
