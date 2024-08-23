@@ -1,4 +1,5 @@
 """ this scripts run the analysis for comparing QTL studies, tissues together with therapy areas matched"""
+
 from functions import relative_success, spreadSheetFormatter
 from stoppedTrials import terminated_td
 from DoEAssessment import directionOfEffect
@@ -589,7 +590,7 @@ uniqueBetas_analyse = (
                 F.lit("yes"),
             )
             .otherwise(F.lit("no"))
-            .alias(f"{x}_{c}")
+            .alias(f"{x}")
             for x, c in dfs.items()
         ]
     )
@@ -847,20 +848,42 @@ uniqueBetas_analyse = (
             F.lit("yes"),
         ).otherwise(F.lit("no")),
     )
-    .withColumn("allStudiesDoE", 
-        F.when((F.col("right_study_id").isNotNull()) & (F.col("doeCoherent")=="yes"), F.lit("yes")).otherwise(F.lit("no"))
+    .withColumn(
+        "allStudiesDoE",
+        F.when(
+            (F.col("right_study_id").isNotNull()) & (F.col("doeCoherent") == "yes"),
+            F.lit("yes"),
+        ).otherwise(F.lit("no")),
     )
-    .withColumn("allTissuesDoE",
-        F.when((F.col("right_bio_feature").isNotNull()) & (F.col("doeCoherent")=="yes"), F.lit("yes")).otherwise(F.lit("no"))
+    .withColumn(
+        "allTissuesDoE",
+        F.when(
+            (F.col("right_bio_feature").isNotNull()) & (F.col("doeCoherent") == "yes"),
+            F.lit("yes"),
+        ).otherwise(F.lit("no")),
     )
-    .withColumn("allQtlDoE",
-        F.when((F.col("right_type").isNotNull()) & (F.col("doeCoherent")=="yes"), F.lit("yes")).otherwise(F.lit("no"))
+    .withColumn(
+        "allQtlDoE",
+        F.when(
+            (F.col("right_type").isNotNull()) & (F.col("doeCoherent") == "yes"),
+            F.lit("yes"),
+        ).otherwise(F.lit("no")),
     )
-    .withColumn("allBetaAssessedDoE",
-        F.when((F.col("beta_assessed").isin(["gof","lof"])) & (F.col("doeCoherent")=="yes"), F.lit("yes")).otherwise(F.lit("no"))
+    .withColumn(
+        "allBetaAssessedDoE",
+        F.when(
+            (F.col("beta_assessed").isin(["gof", "lof"]))
+            & (F.col("doeCoherent") == "yes"),
+            F.lit("yes"),
+        ).otherwise(F.lit("no")),
     )
-    .withColumn("allTherapyAreas",
-        F.when((F.col("therapyArea").isin(["gof","lof"])) & (F.col("doeCoherent")=="yes"), F.lit("yes")).otherwise(F.lit("no"))
+    .withColumn(
+        "allTherapyAreas",
+        F.when(
+            (F.col("therapyArea").isin(["gof", "lof"]))
+            & (F.col("doeCoherent") == "yes"),
+            F.lit("yes"),
+        ).otherwise(F.lit("no")),
     )
     .drop("targetType")  ### remove nonsense columns for this
     .filter(
@@ -906,8 +929,10 @@ def convertTuple(tup):
     st = ",".join(map(str, tup))
     return st
 
+
 #### create list of key and values to identify groups and column names to analyse
-key_list = ["allStudiesDoE",
+key_list = [
+    "allStudiesDoE",
     "allTissuesDoE",
     "allQtlDoE",
     "allBetaAssessedDoE",
@@ -1024,13 +1049,34 @@ def aggregations_original(
     wComparison = Window.partitionBy(comparisonColumn)
     wPrediction = Window.partitionBy(predictionColumn)
     wPredictionComparison = Window.partitionBy(comparisonColumn, predictionColumn)
-
-    uniqIds = df.select("targetId", "diseaseId").distinct().count()
+    results = []
+    # uniqIds = df.select("targetId", "diseaseId").distinct().count()
     out = (
         df.withColumn("comparisonType", F.lit(comparisonType))
+        .withColumn(
+            "study",
+            F.when(
+                F.col(comparisonColumn) == "yes",
+                F.collect_set(F.col("right_study_id")).over(
+                    Window.partitionBy(comparisonColumn)
+                ),
+            ),
+        )
+        .withColumn(
+            "tissue",
+            F.when(
+                F.col(comparisonColumn) == "yes",
+                F.collect_set(F.col("right_bio_feature")).over(
+                    Window.partitionBy(comparisonColumn)
+                ),
+            ),
+        )
+        .withColumn("dataset", F.lit(data))
         .withColumn("predictionType", F.lit(predictionType))
-        .withColumn("total", F.lit(uniqIds))
+        # .withColumn("total", F.lit(uniqIds))
         .withColumn("a", F.count("targetId").over(wPredictionComparison))
+        .withColumn("comparisonColumn", F.lit(comparisonColumn))
+        .withColumn("predictionColumnValue", F.lit(predictionColumn))
         .withColumn(
             "predictionTotal",
             F.count("targetId").over(wPrediction),
@@ -1042,12 +1088,17 @@ def aggregations_original(
         .select(
             F.col(predictionColumn).alias("prediction"),
             F.col(comparisonColumn).alias("comparison"),
+            "dataset",
+            "comparisonColumn",
+            "predictionColumnValue",
             "comparisonType",
             "predictionType",
             "a",
             "predictionTotal",
             "comparisonTotal",
-            "total",
+            # "total",
+            "study",
+            "tissue",
         )
         .filter(F.col("prediction").isNotNull())
         .filter(F.col("comparison").isNotNull())
@@ -1117,7 +1168,6 @@ def aggregations_original(
         [0],
         1,
     )
-    # print(array1)
     total = np.sum(array1)
     res_npPhaseX = np.array(array1, dtype=int)
     resX = convertTuple(fisher_exact(res_npPhaseX, alternative="two-sided"))
@@ -1128,8 +1178,18 @@ def aggregations_original(
     result_st.append(resX)
     result_ci.append(resx_CI)
     (rs_result, rs_ci) = relative_success(array1)
-    # print(total, resX, resx_CI, rs_result, rs_ci)
-
+    studies = (
+        out.filter(F.col("comparison") == "yes")
+        .select("study")
+        .rdd.flatMap(lambda x: x)
+        .collect()
+    )
+    tissues = (
+        out.filter(F.col("comparison") == "yes")
+        .select("tissue")
+        .rdd.flatMap(lambda x: x)
+        .collect()
+    )
     results.append(
         [
             comparisonType,
@@ -1144,6 +1204,8 @@ def aggregations_original(
             round(float(rs_result), 2),
             round(float(rs_ci[0]), 2),
             round(float(rs_ci[1]), 2),
+            studies,
+            tissues,
             path,
         ]
     )
@@ -1202,6 +1264,8 @@ schema = StructType(
         StructField("relSuccess", DoubleType(), True),
         StructField("rsLower", DoubleType(), True),
         StructField("rsUpper", DoubleType(), True),
+        StructField("studies", StringType(), True),
+        StructField("tissues", StringType(), True),
         StructField("path", StringType(), True),
     ]
 )
