@@ -1,4 +1,3 @@
-#### now with propagation
 """ this scripts run the analysis for comparing QTL studies, tissues together with therapy areas matched"""
 from functions import relative_success, spreadSheetFormatter
 from stoppedTrials import terminated_td
