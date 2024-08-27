@@ -1219,7 +1219,7 @@ c.strftime("%H:%M:%S")
 print("start doing aggregations and writing")
 today_date = str(date.today())
 # today_date = "2024-07-17"
-aggSetups_original = comparisons_df(dfs, key_list, value_list)[:5]
+aggSetups_original = comparisons_df(dfs, key_list, value_list)
 listado = []
 
 print("starting with aggregations at", c)
@@ -1272,5 +1272,7 @@ schema = StructType(
 )
 
 # Convert list of lists to DataFrame
-df = spreadSheetFormatter(spark.createDataFrame(result2, schema=schema))
+df = spreadSheetFormatter(spark.createDataFrame(result_all, schema=schema))
 df.toPandas().to_csv(f"gs://ot-team/jroldan/analysis/{today_date}_colocDoEanalysis.csv")
+
+print("dataframe written \n Analysis finished")
