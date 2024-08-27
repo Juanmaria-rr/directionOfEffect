@@ -1190,7 +1190,7 @@ def aggregations_original(
         .rdd.flatMap(lambda x: x)
         .collect()
     )
-    results.append(
+    results.extend(
         [
             comparisonType,
             comparisonColumn,
@@ -1219,15 +1219,16 @@ c.strftime("%H:%M:%S")
 print("start doing aggregations and writing")
 today_date = str(date.today())
 # today_date = "2024-07-17"
-aggSetups_original = comparisons_df(dfs, key_list, value_list)
+aggSetups_original = comparisons_df(dfs, key_list, value_list)[:5]
 listado = []
 
 print("starting with aggregations at", c)
-
+result_all = []
 for row in aggSetups_original:
     results = aggregations_original(
         uniqueBetas_analyse, "propagated", listado, *row, today_date
     )
+    result_all.append(results)
 print("aggregations and analysis done")
 print("building dataframe")
 """
@@ -1271,5 +1272,5 @@ schema = StructType(
 )
 
 # Convert list of lists to DataFrame
-df = spreadSheetFormatter(spark.createDataFrame(results, schema=schema))
+df = spreadSheetFormatter(spark.createDataFrame(result2, schema=schema))
 df.toPandas().to_csv(f"gs://ot-team/jroldan/analysis/{today_date}_colocDoEanalysis.csv")
