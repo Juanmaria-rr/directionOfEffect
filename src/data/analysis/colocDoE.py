@@ -418,7 +418,6 @@ tissueToDisease = (
     .distinct()
 )
 
-
 uniqueBetas_location = (
     (
         target_membrane(spark, target, uniqueBetas).drop(
@@ -1139,7 +1138,8 @@ def aggregations_original(
             + ".parquet"
         )
     )
-    path = (
+    path = ("gs://ot-team/jroldan/"
+        + str(
         today_date
         + "_"
         + "analysis/"
@@ -1152,7 +1152,7 @@ def aggregations_original(
         + "_"
         + predictionColumn
         + ".parquet"
-    )
+    ))
     print(path)
     ### making analysis
     array1 = np.delete(
