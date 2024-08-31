@@ -1138,8 +1138,7 @@ def aggregations_original(
             + ".parquet"
         )
     )
-    path = ("gs://ot-team/jroldan/"
-        + str(
+    path = "gs://ot-team/jroldan/" + str(
         today_date
         + "_"
         + "analysis/"
@@ -1152,7 +1151,7 @@ def aggregations_original(
         + "_"
         + predictionColumn
         + ".parquet"
-    ))
+    )
     print(path)
     ### making analysis
     array1 = np.delete(
@@ -1180,16 +1179,15 @@ def aggregations_original(
     (rs_result, rs_ci) = relative_success(array1)
     studies = (
         out.filter(F.col("comparison") == "yes")
-        .select("study")
-        .rdd.flatMap(lambda x: x)
-        .collect()
+        .select(F.flatten(F.collect_set(F.col("study"))).alias("study"))
+        .collect()[0]["study"]
     )
     tissues = (
         out.filter(F.col("comparison") == "yes")
-        .select("tissue")
-        .rdd.flatMap(lambda x: x)
-        .collect()
+        .select(F.flatten(F.collect_set(F.col("tissue"))).alias("tissue"))
+        .collect()[0]["tissue"]
     )
+
     results.extend(
         [
             comparisonType,
