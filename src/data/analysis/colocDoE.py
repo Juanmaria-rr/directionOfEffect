@@ -20,22 +20,23 @@ from pyspark.sql.types import (
 
 spark = SparkSession.builder.getOrCreate()
 
-platform_v = "24.06"
+path = "gs://open-targets-pre-data-releases/24.12-uo_test-3/output/etl/parquet/"
+# platform_v = "24.06"
 
 target_path = (
-    f"gs://open-targets-data-releases/{platform_v}/output/etl/parquet/targets/"
+    f"{path}targets/"
 )
 target = spark.read.parquet(target_path)
 
 disease_path = (
-    f"gs://open-targets-data-releases/{platform_v}/output/etl/parquet/diseases/"
+    f"{path}diseases/"
 )
 diseases = spark.read.parquet(disease_path)
 
 evidences = spark.read.parquet(
-    f"gs://open-targets-data-releases/{platform_v}/output/etl/parquet/evidence"
+    f"{path}evidence"
 )
-
+#### check colocalisation file name
 coloc = spark.read.parquet(
     "gs://genetics-portal-dev-data/22.09.1/outputs/v2d_coloc"
 ).filter(F.col("right_type") != "gwas")

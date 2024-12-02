@@ -53,10 +53,10 @@ terminated = spark.read.csv(
     header=True,
 ).drop("_c0", "Withdrawn")
 
+path = "gs://open-targets-pre-data-releases/24.12-uo_test-3/output/etl/parquet/"
+
 evidences = (
-    spark.read.parquet(
-        "gs://open-targets-data-releases/24.06/output/etl/parquet/evidence"
-    )
+    spark.read.parquet(f"{path}evidence")
     .filter(
         F.col("datasourceId").isin(
             [
@@ -147,16 +147,14 @@ building = (
 )
 
 ## others
-target_path = "gs://open-targets-data-releases/24.06/output/etl/parquet/targets/"
+target_path = f"{path}targets/"
 target = spark.read.parquet(target_path)
-disease_path = "gs://open-targets-data-releases/24.06/output/etl/parquet/diseases/"
+disease_path = f"{path}diseases/"
 diseases = spark.read.parquet(disease_path)
 dis_name = diseases.select("id", "name")
-indication_path = "gs://open-targets-data-releases/24.06/output/etl/parquet/indication/"
+indication_path = f"{path}indication/"
 indication = spark.read.parquet(indication_path)
-mecact_path = (
-    "gs://open-targets-data-releases/24.06/output/etl/parquet/mechanismOfAction/"
-)
+mecact_path = f"{path}mechanismOfAction/"
 mecact = spark.read.parquet(mecact_path)
 
 ## annotate TSG/oncogene/bivalent using 'hallmarks.attributes'
@@ -1628,7 +1626,7 @@ for path in listado:
             comparison,
             phase,
             round(float(resX.split(",")[0]), 2),
-            round(float(resX.split(",")[1]), 2),
+            float(resX.split(",")[1]),
             round(float(resx_CI.split(",")[0]), 2),
             round(float(resx_CI.split(",")[1]), 2),
             str(total),
