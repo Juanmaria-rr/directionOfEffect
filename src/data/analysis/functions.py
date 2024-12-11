@@ -210,6 +210,9 @@ from pyspark.sql import functions as F
 
 
 def temporary_directionOfEffect(path, datasource_filter):
+    from pyspark.sql import SparkSession, Window
+
+    spark = SparkSession.builder.getOrCreate()
     """
     Function to develop DoE assessment from OT evidences files, creating two columns:
     direction on target and direction on trait
@@ -720,3 +723,76 @@ def temporary_directionOfEffect(path, datasource_filter):
         path, datasource_filter
     )
 """
+
+## https://stackoverflow.com/questions/45629781/drop-if-all-entries-in-a-spark-dataframes-specific-column-is-null
+## drop columns with all values = Null
+def drop_fully_null_columns(df, but_keep_these=[]):
+    """Drops DataFrame columns that are fully null
+    (i.e. the maximum value is null)
+
+    Arguments:
+        df {spark DataFrame} -- spark dataframe
+        but_keep_these {list} -- list of columns to keep without checking for nulls
+
+    Returns:
+        spark DataFrame -- dataframe with fully null columns removed
+    """
+
+    # skip checking some columns
+    cols_to_check = [col for col in df.columns if col not in but_keep_these]
+    if len(cols_to_check) > 0:
+        # drop columns for which the max is None
+        rows_with_data = (
+            df.select(*cols_to_check)
+            .groupby()
+            .agg(*[F.max(c).alias(c) for c in cols_to_check])
+            .take(1)[0]
+        )
+        cols_to_drop = [
+            c for c, const in rows_with_data.asDict().items() if const == None
+        ]
+        new_df = df.drop(*cols_to_drop)
+
+        return new_df
+    else:
+        return df
+
+def convertTuple(tup):
+    st = ",".join(map(str, tup))
+    return st
+
+
+def relative_success(array1):
+    from scipy.stats.contingency import relative_risk
+
+    ### take numbers from array
+    a, b = array1[0]
+    c, d = array1[1]
+    ####
+    """
+    Where zeros cause problems with computation of the relative risk or its standard error,
+    0.5 is added to all cells (a, b, c, d) (Pagano & Gauvreau, 2000; Deeks & Higgins, 2010).
+    """
+    total_expo = a + b
+    total_noExpo = c + d
+    ### for cases when total_expo/total_noExpo = 0,
+    ### we sum 1 to avoid errors an get at least 0 in the %
+    if any(t == 0 for t in [total_expo, total_noExpo]):
+        total_expo = total_expo + 1
+        total_noExpo = total_noExpo + 1
+        ### calculate relative success
+        relative_success = relative_risk(a, total_expo, c, total_noExpo)
+        ### calculate confidence intervals
+        rs_ci = relative_risk(a, total_expo, c, total_noExpo).confidence_interval(
+            confidence_level=0.95
+        )
+    else:
+
+        ### calculate relative success
+        relative_success = relative_risk(a, total_expo, c, total_noExpo)
+        ### calculate confidence intervals
+        rs_ci = relative_risk(a, total_expo, c, total_noExpo).confidence_interval(
+            confidence_level=0.95
+        )
+
+    return relative_success.relative_risk, rs_ci
