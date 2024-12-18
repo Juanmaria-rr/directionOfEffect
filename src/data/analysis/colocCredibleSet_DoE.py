@@ -22,6 +22,7 @@ from pyspark.sql.types import (
     StringType,
     FloatType,
 )
+import pandas as pd
 
 spark = SparkSession.builder.getOrCreate()
 
@@ -35,13 +36,106 @@ evidences = spark.read.parquet(f"{path}evidence")
 
 credible = spark.read.parquet(f"{path}credibleSet")
 
-index = spark.read.parquet(f"{path}gwasIndex")
+### index with new fix" "gs://ot-team/irene/gentropy/study_index_2412_fixed"
+index = spark.read.parquet(f"gs://ot-team/irene/gentropy/study_index_2412_fixed")
 
 new = spark.read.parquet(f"{path}colocalisation/coloc")
 
 variantIndex = spark.read.parquet(f"{path}variantIndex")
 
 biosample = spark.read.parquet(f"{path}biosample")
+
+
+#### Fixing scXQTL as XQTLs:
+## code provided by @ireneisdoomed
+pd.DataFrame.iteritems = pd.DataFrame.items
+
+raw_studies_metadata_schema: StructType = StructType(
+        [
+            StructField("study_id", StringType(), True),
+            StructField("dataset_id", StringType(), True),
+            StructField("study_label", StringType(), True),
+            StructField("sample_group", StringType(), True),
+            StructField("tissue_id", StringType(), True),
+            StructField("tissue_label", StringType(), True),
+            StructField("condition_label", StringType(), True),
+            StructField("sample_size", IntegerType(), True),
+            StructField("quant_method", StringType(), True),
+            StructField("pmid", StringType(), True),
+            StructField("study_type", StringType(), True),
+        ]
+    )
+raw_studies_metadata_path = "https://raw.githubusercontent.com/eQTL-Catalogue/eQTL-Catalogue-resources/fe3c4b4ed911b3a184271a6aadcd8c8769a66aba/data_tables/dataset_metadata.tsv"
+
+study_table = spark.createDataFrame(
+            pd.read_csv(raw_studies_metadata_path, sep="\t"),
+            schema=raw_studies_metadata_schema,
+        )
+
+#index = spark.read.parquet("gs://open-targets-pre-data-releases/24.12-uo_test-3/output/genetics/parquet/study_index")
+
+study_index_w_correct_type = (
+    study_table.select(
+        F.concat_ws(
+            "_",
+            F.col("study_label"),
+            F.col("quant_method"),
+            F.col("sample_group"),
+        ).alias("extracted_column"),
+        "study_type",
+    )
+    .join(
+        index
+        # Get eQTL Catalogue studies
+        .filter(F.col("studyType") != "gwas")
+        .filter(~F.col("studyId").startswith("UKB_PPP"))
+        # Remove measured trait
+        .withColumn(
+            "extracted_column",
+            F.regexp_replace(F.col("studyId"), r"(_ENS.*|_ILMN.*|_X.*|_[0-9]+:.*)", ""),
+        )
+        .withColumn(
+            "extracted_column",
+            # After the previous cleanup, there are multiple traits from the same publication starting with the gene symbol that need to be removed (e.g. `Sun_2018_aptamer_plasma_ANXA2.4961.17.1..1`)
+            F.when(
+                F.col("extracted_column").startswith("Sun_2018_aptamer_plasma"),
+                F.lit("Sun_2018_aptamer_plasma"),
+            ).otherwise(F.col("extracted_column")),
+        ),
+        on="extracted_column",
+        how="right",
+    )
+    .persist()
+)
+
+fixed = (
+    study_index_w_correct_type.withColumn(
+        "toFix",
+        F.when(
+            (F.col("study_type") != "single-cell")
+            & (F.col("studyType").startswith("sc")),
+            F.lit(True),
+        ).otherwise(F.lit(False)),
+    )
+    # Remove the substring "sc" from the studyType column
+    .withColumn(
+        "newStudyType",
+        F.when(
+            F.col("toFix"), F.regexp_replace(F.col("studyType"), r"sc", "")
+        ).otherwise(F.col("studyType")),
+    )
+    .drop("toFix", "extracted_column", "study_type")
+).persist()
+all_studies = index.join(
+    fixed.selectExpr("studyId", "newStudyType"), on="studyId", how="left"
+).persist()
+fixedIndex = all_studies.withColumn(
+    "studyType",
+    F.when(F.col("newStudyType").isNotNull(), F.col("newStudyType")).otherwise(
+        F.col("studyType")
+    ),
+).drop("newStudyType")
+#### fixed  
 
 newColoc = (
     new.join(
@@ -65,7 +159,7 @@ newColoc = (
         how="left",
     )
     .join(
-        index.selectExpr(  ### bring modulated target on right side (QTL study)
+        fixedIndex.selectExpr(  ### bring modulated target on right side (QTL study)
             "studyId as rightStudyId", "geneId", "projectId", "studyType as indexStudyType", "condition", "biosampleId"
         ),
         on="rightStudyId",
@@ -527,7 +621,7 @@ for variable in variables_study:
 # Convert list of lists to DataFrame
 df = spreadSheetFormatter(spark.createDataFrame(result_all, schema=schema))
 df.toPandas().to_csv(
-    f"gs://ot-team/jroldan/analysis/{today_date}_credibleSetColocDoEanalysis.csv"
+    f"gs://ot-team/jroldan/analysis/{today_date}_credibleSetColocDoEanalysis_fixedIndex.csv"
 )
 
 print("dataframe written \n Analysis finished")
