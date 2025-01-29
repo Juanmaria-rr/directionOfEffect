@@ -280,6 +280,41 @@ assessment, evidences, actionType, oncolabel = temporary_directionOfEffect(
     path, datasource_filter
 )
 
+drugApproved=spark.read.parquet("gs://ot-team/irene/l2g/validation/chembl_w_flags").drop("clinicalTrialId","isComplex"
+).withColumn("isApproved", F.when(F.col("isApproved")=="true", F.lit(1)).otherwise(F.lit(0))).distinct()
+
+analysis_chembl_indication = (discrepancifier(
+    assessment.filter((F.col("datasourceId") == "chembl"))
+    .join(drugApproved.filter(F.col("isApproved")==1), on=["targetId","diseaseId","drugId"], how="left")
+    .withColumn(
+        "maxClinPhase",
+        F.max(F.col("clinicalPhase")).over(Window.partitionBy("targetId", "diseaseId")),
+    )
+    .withColumn(
+        "approvedDrug",
+        F.max(F.col("isApproved")).over(Window.partitionBy("targetId", "diseaseId")),
+    )
+    .groupBy("targetId", "diseaseId", "maxClinPhase","approvedDrug")
+    .pivot("homogenized")
+    .agg(F.count("targetId"))
+    ).filter(F.col("coherencyDiagonal") == "coherent")
+    .drop(
+        "coherencyDiagonal", "coherencyOneCell", "noEvaluable", "GoF_risk", "LoF_risk"
+    )
+    .withColumnRenamed("GoF_protect", "drugGoF_protect")
+    .withColumnRenamed("LoF_protect", "drugLoF_protect")
+    .withColumn("approved", 
+        F.when(F.col("approvedDrug")==1, F.lit("yes")
+        ).otherwise(F.lit("no"))
+    )
+    .withColumn("newPhases",
+        F.when(F.col("approvedDrug")==1, F.lit(4)
+        ).when(F.col("approvedDrug").isNull(), 
+            F.when(F.col("maxClinPhase")==4,F.lit(3)
+            ).otherwise(F.col("maxClinPhase"))))
+    .persist()
+)
+
 chemblAssoc = (
     discrepancifier(
         assessment.filter(
@@ -306,7 +341,7 @@ benchmark = (
     (
         resolvedColoc.filter(F.col("betaGwas") < 0)
         .join(  ### select just GWAS giving protection
-            chemblAssoc, on=["targetId", "diseaseId"], how="inner"
+            analysis_chembl_indication, on=["targetId", "diseaseId"], how="inner"
         )
         .withColumn(
             "AgreeDrug",
@@ -324,22 +359,6 @@ benchmark = (
         )
     )
     .filter(F.col("name") != "COVID-19")  #### remove COVID-19 associations
-    .withColumn(
-        "Phase4",
-        F.when(F.col("maxClinPhase") == 4, F.lit("yes")).otherwise(F.lit("no")),
-    )
-    .withColumn(
-        "Phase>=3",
-        F.when(F.col("maxClinPhase") >= 3, F.lit("yes")).otherwise(F.lit("no")),
-    )
-    .withColumn(
-        "Phase>=2",
-        F.when(F.col("maxClinPhase") >= 2, F.lit("yes")).otherwise(F.lit("no")),
-    )
-    .withColumn(
-        "Phase>=1",
-        F.when(F.col("maxClinPhase") >= 1, F.lit("yes")).otherwise(F.lit("no")),
-    )
 ).join(biosample.select("biosampleId", "biosampleName"), on="biosampleId", how="left")
 
 #### Analysis
@@ -420,7 +439,7 @@ def aggregations_original(
         .filter(F.col("comparison").isNotNull())
         .distinct()
     )
-    
+    '''
     out.write.mode("overwrite").parquet(
         "gs://ot-team/jroldan/"
         + str(
@@ -438,6 +457,7 @@ def aggregations_original(
             + ".parquet"
         )
     )
+    '''
     
     listado.append(
         "gs://ot-team/jroldan/"
@@ -538,6 +558,12 @@ def comparisons_df_iterative(disdic,projectId):
             ("Phase>=3", "clinical"),
             ("Phase>=2", "clinical"),
             ("Phase>=1", "clinical"),
+            ("nPhase4", "clinical"),
+            ("nPhase>=3", "clinical"),
+            ("nPhase>=2", "clinical"),
+            ("nPhase>=1", "clinical"),
+            ("approved", "clinical"),
+
             # ("PhaseT", "clinical"),
         ]
     )
@@ -568,15 +594,18 @@ result_all = []
 today_date = str(date.today())
 variables_study = ["projectId", "biosampleName", "rightStudyType", "colocDoE"]
 
+print("looping for variables_study")
+
 for variable in variables_study:
+    print("analysing",variable)
     #### build list of comparison and prediction columns
     rows=comparisons_df_iterative(disdic,variable)
     #### prepare aggregation depending on the variable problem
-    window_spec = Window.partitionBy("targetId","diseaseId",variable).orderBy(F.col("pValueExponent").asc())
+    window_spec = Window.partitionBy("targetId","diseaseId",variable).orderBy(F.col("pValueExponent").asc(),ignorenulls=True) ### ignore nulls aded 29.01.2025
     #### take directionality from lowest p value
     bench2=benchmark.withColumn("agree_lowestPval", F.first("AgreeDrug").over(window_spec)
-        ).groupBy("targetId","diseaseId","maxClinPhase",variable,"agree_lowestPval"
-        ).count().withColumn(
+        ).groupBy("targetId","diseaseId","maxClinPhase","approved","newPhases").pivot(variable).agg(F.collect_set("agree_lowestPVal")
+        ).withColumn(
         "Phase4",
         F.when(F.col("maxClinPhase") == 4, F.lit("yes")).otherwise(F.lit("no")),
         ).withColumn(
@@ -588,15 +617,32 @@ for variable in variables_study:
         ).withColumn(
             "Phase>=1",
             F.when(F.col("maxClinPhase") >= 1, F.lit("yes")).otherwise(F.lit("no")),
+        ).withColumn( ###  new phases extracted from aproved label 
+        "nPhase4",
+            F.when(F.col("newPhases") == 4, F.lit("yes")).otherwise(F.lit("no")),
+        ).withColumn(
+        "nPhase>=3",
+            F.when(F.col("newPhases") >= 3, F.lit("yes")).otherwise(F.lit("no")),
+        ).withColumn(
+        "nPhase>=2",
+            F.when(F.col("newPhases") >= 2, F.lit("yes")).otherwise(F.lit("no")),
+        ).withColumn(
+        "nPhase>=1",
+            F.when(F.col("newPhases") >= 1, F.lit("yes")).otherwise(F.lit("no")),
+        ).withColumn(
+        "approved",
+            F.when(F.col("approved")=="yes", F.lit("yes")).otherwise(F.lit("no")),
         )
     #### build columns yes/no for each distinct value in the column variable
     for x, value in [(key, val) for key, val in disdic.items() if val == variable]:
+        print("building columns: ", x,"and",value)
         bench2 = bench2.withColumn(
-                x, 
-                F.when((F.col(value) == x) & (F.col("agree_lowestPval") == "yes"), F.lit("yes")).otherwise(F.lit("no"))
-            )
+            x, 
+            F.when(F.array_contains(F.col(x),"yes"), F.lit("yes")).otherwise(F.lit("no"))
+        )
     #### doing aggregations per 
     for row in rows:
+        print("row:",row)
         results = aggregations_original(bench2, "propagated", listado, *row, today_date)
         result_all.append(results)
     
@@ -621,7 +667,7 @@ for variable in variables_study:
 # Convert list of lists to DataFrame
 df = spreadSheetFormatter(spark.createDataFrame(result_all, schema=schema))
 df.toPandas().to_csv(
-    f"gs://ot-team/jroldan/analysis/{today_date}_credibleSetColocDoEanalysis_fixedIndex.csv"
+    f"gs://ot-team/jroldan/analysis/{today_date}_credibleSetColocDoEanalysis_fixedIndex_fixedTotalNumber.csv"
 )
 
 print("dataframe written \n Analysis finished")
