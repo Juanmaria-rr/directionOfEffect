@@ -206,11 +206,11 @@ def spreadSheetFormatter(df):
 
 
 #####
-from pyspark.sql import functions as F
 
 
 def temporary_directionOfEffect(path, datasource_filter):
     from pyspark.sql import SparkSession, Window
+    from pyspark.sql import functions as F
 
     spark = SparkSession.builder.getOrCreate()
     """
@@ -724,6 +724,7 @@ def temporary_directionOfEffect(path, datasource_filter):
     )
 """
 
+
 ## https://stackoverflow.com/questions/45629781/drop-if-all-entries-in-a-spark-dataframes-specific-column-is-null
 ## drop columns with all values = Null
 def drop_fully_null_columns(df, but_keep_these=[]):
@@ -756,6 +757,7 @@ def drop_fully_null_columns(df, but_keep_these=[]):
         return new_df
     else:
         return df
+
 
 def convertTuple(tup):
     st = ",".join(map(str, tup))
@@ -796,3 +798,262 @@ def relative_success(array1):
         )
 
     return relative_success.relative_risk, rs_ci
+
+
+from pyspark.sql import SparkSession
+import pyspark.sql.functions as F
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+import pandas as pd
+
+path = "gs://open-targets-pre-data-releases/24.12-uo_test-3/output/etl/parquet/"
+spark = SparkSession.builder.getOrCreate()
+
+
+def build_gwasResolvedColoc(path):
+
+    #### Now load sources of data to generate credible_set_OT_genetics evidences and associations.
+
+    diseases = spark.read.parquet(f"{path}diseases/")
+
+    credibleEvidence = spark.read.parquet(f"{path}evidence").filter(
+        F.col("datasourceId").isin(["gwas_credible_sets"])
+    )
+    credible = spark.read.parquet(f"{path}credibleSet")
+
+    index = spark.read.parquet(f"{path}gwasIndex")
+
+    new = spark.read.parquet(f"{path}colocalisation/coloc")
+
+    print("read spark files")
+
+    print("fixing scXQTL and XQTL studies")
+    #### Fixing scXQTL as XQTLs:
+    ## code provided by @ireneisdoomed
+    pd.DataFrame.iteritems = pd.DataFrame.items
+
+    raw_studies_metadata_schema: StructType = StructType(
+        [
+            StructField("study_id", StringType(), True),
+            StructField("dataset_id", StringType(), True),
+            StructField("study_label", StringType(), True),
+            StructField("sample_group", StringType(), True),
+            StructField("tissue_id", StringType(), True),
+            StructField("tissue_label", StringType(), True),
+            StructField("condition_label", StringType(), True),
+            StructField("sample_size", IntegerType(), True),
+            StructField("quant_method", StringType(), True),
+            StructField("pmid", StringType(), True),
+            StructField("study_type", StringType(), True),
+        ]
+    )
+    raw_studies_metadata_path = "https://raw.githubusercontent.com/eQTL-Catalogue/eQTL-Catalogue-resources/fe3c4b4ed911b3a184271a6aadcd8c8769a66aba/data_tables/dataset_metadata.tsv"
+
+    study_table = spark.createDataFrame(
+        pd.read_csv(raw_studies_metadata_path, sep="\t"),
+        schema=raw_studies_metadata_schema,
+    )
+
+    # index = spark.read.parquet("gs://open-targets-pre-data-releases/24.12-uo_test-3/output/genetics/parquet/study_index")
+
+    study_index_w_correct_type = (
+        study_table.select(
+            F.concat_ws(
+                "_",
+                F.col("study_label"),
+                F.col("quant_method"),
+                F.col("sample_group"),
+            ).alias("extracted_column"),
+            "study_type",
+        )
+        .join(
+            index
+            # Get eQTL Catalogue studies
+            .filter(F.col("studyType") != "gwas").filter(
+                ~F.col("studyId").startswith("UKB_PPP")
+            )
+            # Remove measured trait
+            .withColumn(
+                "extracted_column",
+                F.regexp_replace(
+                    F.col("studyId"), r"(_ENS.*|_ILMN.*|_X.*|_[0-9]+:.*)", ""
+                ),
+            ).withColumn(
+                "extracted_column",
+                # After the previous cleanup, there are multiple traits from the same publication starting with the gene symbol that need to be removed (e.g. `Sun_2018_aptamer_plasma_ANXA2.4961.17.1..1`)
+                F.when(
+                    F.col("extracted_column").startswith("Sun_2018_aptamer_plasma"),
+                    F.lit("Sun_2018_aptamer_plasma"),
+                ).otherwise(F.col("extracted_column")),
+            ),
+            on="extracted_column",
+            how="right",
+        )
+        .persist()
+    )
+
+    fixed = (
+        study_index_w_correct_type.withColumn(
+            "toFix",
+            F.when(
+                (F.col("study_type") != "single-cell")
+                & (F.col("studyType").startswith("sc")),
+                F.lit(True),
+            ).otherwise(F.lit(False)),
+        )
+        # Remove the substring "sc" from the studyType column
+        .withColumn(
+            "newStudyType",
+            F.when(
+                F.col("toFix"), F.regexp_replace(F.col("studyType"), r"sc", "")
+            ).otherwise(F.col("studyType")),
+        ).drop("toFix", "extracted_column", "study_type")
+    ).persist()
+    all_studies = index.join(
+        fixed.selectExpr("studyId", "newStudyType"), on="studyId", how="left"
+    ).persist()
+    fixedIndex = all_studies.withColumn(
+        "studyType",
+        F.when(F.col("newStudyType").isNotNull(), F.col("newStudyType")).otherwise(
+            F.col("studyType")
+        ),
+    ).drop("newStudyType")
+
+    print("fixed scXQTL and XQTL studies")
+
+    print("creating new coloc")
+
+    #### fixed
+    newColoc = (
+        new.join(
+            credible.selectExpr(  #### studyLocusId from credible set to uncover the codified variants on left side
+                "studyLocusId as leftStudyLocusId",
+                "StudyId as leftStudyId",
+                "variantId as leftVariantId",
+                "studyType as credibleLeftStudyType",
+            ),
+            on="leftStudyLocusId",
+            how="left",
+        )
+        .join(
+            credible.selectExpr(  #### studyLocusId from credible set to uncover the codified variants on right side
+                "studyLocusId as rightStudyLocusId",
+                "studyId as rightStudyId",
+                "variantId as rightVariantId",
+                "studyType as credibleRightStudyType",
+            ),
+            on="rightStudyLocusId",
+            how="left",
+        )
+        .join(
+            fixedIndex.selectExpr(  ### bring modulated target on right side (QTL study)
+                "studyId as rightStudyId",
+                "geneId",
+                "projectId",
+                "studyType as indexStudyType",
+                "condition",
+                "biosampleId",
+            ),
+            on="rightStudyId",
+            how="left",
+        )
+        .persist()
+    )
+    # remove columns without content (only null values on them)
+    df = credibleEvidence.filter((F.col("datasourceId") == "gwas_credible_sets"))
+
+    # Use an aggregation to determine non-null columns
+    non_null_counts = df.select(
+        *[F.sum(F.col(col).isNotNull().cast("int")).alias(col) for col in df.columns]
+    )
+
+    # Collect the counts for each column
+    non_null_columns = [
+        row[0] for row in non_null_counts.collect()[0].asDict().items() if row[1] > 0
+    ]
+
+    # Select only the non-null columns
+    filtered_df = df.select(*non_null_columns).persist()
+
+    ## bring studyId, variantId, beta from Gwas and pValue
+    gwasComplete = filtered_df.join(
+        credible.selectExpr(
+            "studyLocusId", "studyId", "variantId", "beta as betaGwas", "pValueExponent"
+        ),
+        on="studyLocusId",
+        how="left",
+    )
+    print("creating new gwasResolvedColoc")
+
+    ### bring directionality from QTL
+
+    gwasResolvedColoc = (
+        (
+            newColoc.filter(F.col("rightStudyType") != "gwas")
+            .withColumnRenamed("geneId", "targetId")
+            .join(
+                gwasComplete.withColumnRenamed("studyLocusId", "leftStudyLocusId"),
+                on=["leftStudyLocusId", "targetId"],
+                how="right",
+            )
+            .join(  ### propagated using parent terms
+                diseases.selectExpr(
+                    "id as diseaseId", "name", "parents", "therapeuticAreas"
+                ),
+                on="diseaseId",
+                how="left",
+            )
+            .withColumn(
+                "diseaseId",
+                F.explode_outer(
+                    F.concat(F.array(F.col("diseaseId")), F.col("parents"))
+                ),
+            )
+            .drop("parents", "oldDiseaseId")
+        )
+        .withColumn(
+            "colocDoE",
+            F.when(
+                F.col("rightStudyType").isin(
+                    ["eqtl", "pqtl", "tuqtl", "sceqtl", "sctuqtl"]
+                ),
+                F.when(
+                    (F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") > 0),
+                    F.lit("GoF_risk"),
+                )
+                .when(
+                    (F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") < 0),
+                    F.lit("LoF_risk"),
+                )
+                .when(
+                    (F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") > 0),
+                    F.lit("LoF_protect"),
+                )
+                .when(
+                    (F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") < 0),
+                    F.lit("GoF_protect"),
+                ),
+            ).when(
+                F.col("rightStudyType").isin(
+                    ["sqtl", "scsqtl"]
+                ),  ### opposite directionality than sqtl
+                F.when(
+                    (F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") > 0),
+                    F.lit("LoF_risk"),
+                )
+                .when(
+                    (F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") < 0),
+                    F.lit("GoF_risk"),
+                )
+                .when(
+                    (F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") > 0),
+                    F.lit("GoF_protect"),
+                )
+                .when(
+                    (F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") < 0),
+                    F.lit("LoF_protect"),
+                ),
+            ),
+        )
+        .persist()
+    )
+    return gwasResolvedColoc
