@@ -277,7 +277,7 @@ def temporary_directionOfEffect(path, datasource_filter):
         "POSITIVE ALLOSTERIC MODULATOR",
         "POSITIVE MODULATOR",
         "AGONIST",
-        "SEQUESTERING AGENT",
+        "SEQUESTERING AGENT",  ## lost at 31.01.2025
         "STABILISER",
     ]
 
