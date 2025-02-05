@@ -140,7 +140,7 @@ list_l2g = [
     0.94,
     0.95,
     0.96,
-    0.98
+    0.98,
 ]
 print("creating benchmarkOT function")
 
@@ -440,7 +440,6 @@ def aggregations_original(
         .filter(F.col("comparison").isNotNull())
         .distinct()
     )
-    """
     out.write.mode("overwrite").parquet(
         "gs://ot-team/jroldan/"
         + str(
@@ -456,7 +455,6 @@ def aggregations_original(
             + ".parquet"
         )
     )
-    """
     filePath = "gs://ot-team/jroldan/" + str(
         today_date
         + "_"
@@ -617,11 +615,20 @@ schema = StructType(
 print("created pandas dataframe")
 print("converting to spark dataframe")
 pattern = r"(\b[0-9]+)_(\d+\b)"  # Matches patterns like 0_1, 0_95, etc.
-df = spreadSheetFormatter(spark.createDataFrame(results, schema=schema)).withColumn(
-    "range", F.regexp_extract(F.col("criteria"), pattern, 0)
-).withColumn("range", F.regexp_replace(F.col("range"), "_", ".") ## substitute "_" by "."
-).withColumn("comparison", F.regexp_extract(F.col("criteria"), r"&(.+)", 1) # take string after "&"
-).withColumn("comparison", F.regexp_replace(F.col("comparison"), "_combined$", "") ### trims "combined"
+df = (
+    spreadSheetFormatter(spark.createDataFrame(results, schema=schema))
+    .withColumn("range", F.regexp_extract(F.col("criteria"), pattern, 0))
+    .withColumn(
+        "range", F.regexp_replace(F.col("range"), "_", ".")  ## substitute "_" by "."
+    )
+    .withColumn(
+        "comparison",
+        F.regexp_extract(F.col("criteria"), r"&(.+)", 1),  # take string after "&"
+    )
+    .withColumn(
+        "comparison",
+        F.regexp_replace(F.col("comparison"), "_combined$", ""),  ### trims "combined"
+    )
 )
 print("writting dataframe")
 df.toPandas().to_csv(
