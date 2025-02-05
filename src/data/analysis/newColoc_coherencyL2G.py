@@ -124,11 +124,23 @@ list_l2g = [
     0.60,
     0.65,
     0.70,
+    0.72,
+    0.74,
     0.75,
+    0.76,
+    0.78,
     0.80,
+    0.82,
+    0.84,
     0.85,
+    0.86,
+    0.88,
     0.90,
+    0.92,
+    0.94,
     0.95,
+    0.96,
+    0.98
 ]
 print("creating benchmarkOT function")
 
@@ -356,10 +368,10 @@ def comparisons_df(dataset) -> list:
     predictions = spark.createDataFrame(
         data=[
             ("Phase4", "clinical"),
-            # ("Phase>=3", "clinical"),
-            # ("Phase>=2", "clinical"),
-            # ("Phase>=1", "clinical"),
-            # ("PhaseT", "clinical"),
+            ("Phase>=3", "clinical"),
+            ("Phase>=2", "clinical"),
+            ("Phase>=1", "clinical"),
+            ("PhaseT", "clinical"),
         ]
     )
     return comparisons.join(predictions, how="full").collect()
@@ -607,6 +619,9 @@ print("converting to spark dataframe")
 pattern = r"(\b[0-9]+)_(\d+\b)"  # Matches patterns like 0_1, 0_95, etc.
 df = spreadSheetFormatter(spark.createDataFrame(results, schema=schema)).withColumn(
     "range", F.regexp_extract(F.col("criteria"), pattern, 0)
+).withColumn("range", F.regexp_replace(F.col("range"), "_", ".") ## substitute "_" by "."
+).withColumn("comparison", F.regexp_extract(F.col("criteria"), r"&(.+)", 1) # take string after "&"
+).withColumn("comparison", F.regexp_replace(F.col("comparison"), "_combined$", "") ### trims "combined"
 )
 print("writting dataframe")
 df.toPandas().to_csv(
