@@ -497,6 +497,7 @@ def aggregations_original(
     result_st.append(resX)
     result_ci.append(resx_CI)
     (rs_result, rs_ci) = relative_success(array1)
+    '''
     studies = (
         out.filter(F.col("comparison") == "yes")
         .select(F.flatten(F.collect_set(F.col("study"))).alias("study"))
@@ -507,7 +508,7 @@ def aggregations_original(
         .select(F.flatten(F.collect_set(F.col("tissue"))).alias("tissue"))
         .collect()[0]["tissue"]
     )
-
+    '''
     results.extend(
         [
             comparisonType,
@@ -522,8 +523,8 @@ def aggregations_original(
             round(float(rs_result), 2),
             round(float(rs_ci[0]), 2),
             round(float(rs_ci[1]), 2),
-            studies,
-            tissues,
+            # studies,
+            # tissues,
             path,
         ]
     )
@@ -567,8 +568,8 @@ schema = StructType(
         StructField("relSuccess", DoubleType(), True),
         StructField("rsLower", DoubleType(), True),
         StructField("rsUpper", DoubleType(), True),
-        StructField("studies", StringType(), True),
-        StructField("tissues", StringType(), True),
+        #StructField("studies", StringType(), True),
+        #StructField("tissues", StringType(), True),
         StructField("path", StringType(), True),
     ]
 )

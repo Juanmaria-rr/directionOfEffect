@@ -126,7 +126,9 @@ datasource_filter = [
     "chembl",
 ]
 
-prueba_assessment = temporary_directionOfEffect(path, datasource_filter).persist()
+prueba_assessment, evidences, actionType, oncolabel = temporary_directionOfEffect(
+    path, datasource_filter
+)
 
 print("Moving to step 2")
 
@@ -208,6 +210,7 @@ assessment = prueba_assessment.unionByName(
 
 print("defining non propagated,propagated and analysis_drugs functions")
 
+
 def analysis_nonPropagated(assessment, analysisDatasources):
     return discrepancifier(
         assessment.filter(F.col("datasourceId").isin(analysisDatasources))
@@ -254,12 +257,20 @@ def analysis_propagated(assessment, analysisDatasources):
 
 
 chembl_ds = ["chembl"]
+drugApproved = (  ### added on 30.01.2025
+    spark.read.parquet("gs://ot-team/irene/l2g/validation/chembl_w_flags")
+    .drop("clinicalTrialId", "isComplex")
+    .withColumn(
+        "isApproved",
+        F.when(F.col("isApproved") == "true", F.lit(1)).otherwise(F.lit(0)),
+    )
+    .distinct()
+)
 
 
-def analysis_drugs(assessment, chembl_ds):
+def analysis_drugs(assessment, chembl_ds, drugApproved):
     return discrepancifier(
-        assessment.filter((F.col("datasourceId").isin(chembl_ds))
-        )
+        assessment.filter((F.col("datasourceId").isin(chembl_ds)))
         .join(
             drugApproved.filter(F.col("isApproved") == 1),
             on=["targetId", "diseaseId", "drugId"],
@@ -276,29 +287,19 @@ def analysis_drugs(assessment, chembl_ds):
             F.max(F.col("isApproved")).over(
                 Window.partitionBy("targetId", "diseaseId")
             ),
-        ).withColumn(
-        "approved",
-        F.when(F.col("approvedDrug") == 1, F.lit("yes")).otherwise(F.lit("no")),
         )
-        .groupBy("targetId", "diseaseId", "maxClinPhase","approved")
+        .withColumn(
+            "approved",
+            F.when(F.col("approvedDrug") == 1, F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .groupBy("targetId", "diseaseId", "maxClinPhase", "approved")
         .pivot("homogenized")
         .agg(F.count("targetId"))
         .persist()
     )
 
-##### approved dataset added 30.01.2025
-drugApproved = (
-    spark.read.parquet("gs://ot-team/irene/l2g/validation/chembl_w_flags")
-    .drop("clinicalTrialId", "isComplex")
-    .withColumn(
-        "isApproved",
-        F.when(F.col("isApproved") == "true", F.lit(1)).otherwise(F.lit(0)),
-    )
-    .distinct()
-)
 
-
-analysis_chembl = analysis_drugs(assessment, chembl_ds)
+analysis_chembl = analysis_drugs(assessment, chembl_ds, drugApproved)
 
 #######
 ## include here the analysis
@@ -307,6 +308,8 @@ analysis_chembl = analysis_drugs(assessment, chembl_ds)
 analysisDatasources = []
 
 print("defining full_analysis_propagation")
+
+
 def full_analysis_propagation(
     assessment, analysisDatasources, analysis_chembl, terminated_array, diseaseTA
 ):
@@ -448,6 +451,8 @@ def full_analysis_propagation(
 ## no propag
 #####
 print("defining full analysis no propagation")
+
+
 def full_analysis_noPropagation(
     assessment, analysisDatasources, analysis_chembl, terminated_array, diseaseTA
 ):
@@ -458,6 +463,7 @@ def full_analysis_noPropagation(
                 "targetId",
                 "diseaseId",
                 "maxClinPhase",
+                "approved",
                 "coherencyDiagonal as coherencyDiagonal_ch",
                 "coherencyOneCell as coherencyOneCell_ch",
                 "LoF_protect as LoF_protect_ch",
@@ -780,7 +786,7 @@ def comparisons_df() -> list:
             ("Phase>=2", "clinical"),
             ("Phase>=1", "clinical"),
             ("PhaseT", "clinical"),
-            ("approved", "clinical")
+            ("approved", "clinical"),
         ]
     )
     return comparisons.join(predictions, how="full").collect()

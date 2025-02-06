@@ -51,28 +51,28 @@ biosample = spark.read.parquet(f"{path}biosample")
 pd.DataFrame.iteritems = pd.DataFrame.items
 
 raw_studies_metadata_schema: StructType = StructType(
-        [
-            StructField("study_id", StringType(), True),
-            StructField("dataset_id", StringType(), True),
-            StructField("study_label", StringType(), True),
-            StructField("sample_group", StringType(), True),
-            StructField("tissue_id", StringType(), True),
-            StructField("tissue_label", StringType(), True),
-            StructField("condition_label", StringType(), True),
-            StructField("sample_size", IntegerType(), True),
-            StructField("quant_method", StringType(), True),
-            StructField("pmid", StringType(), True),
-            StructField("study_type", StringType(), True),
-        ]
-    )
+    [
+        StructField("study_id", StringType(), True),
+        StructField("dataset_id", StringType(), True),
+        StructField("study_label", StringType(), True),
+        StructField("sample_group", StringType(), True),
+        StructField("tissue_id", StringType(), True),
+        StructField("tissue_label", StringType(), True),
+        StructField("condition_label", StringType(), True),
+        StructField("sample_size", IntegerType(), True),
+        StructField("quant_method", StringType(), True),
+        StructField("pmid", StringType(), True),
+        StructField("study_type", StringType(), True),
+    ]
+)
 raw_studies_metadata_path = "https://raw.githubusercontent.com/eQTL-Catalogue/eQTL-Catalogue-resources/fe3c4b4ed911b3a184271a6aadcd8c8769a66aba/data_tables/dataset_metadata.tsv"
 
 study_table = spark.createDataFrame(
-            pd.read_csv(raw_studies_metadata_path, sep="\t"),
-            schema=raw_studies_metadata_schema,
-        )
+    pd.read_csv(raw_studies_metadata_path, sep="\t"),
+    schema=raw_studies_metadata_schema,
+)
 
-#index = spark.read.parquet("gs://open-targets-pre-data-releases/24.12-uo_test-3/output/genetics/parquet/study_index")
+# index = spark.read.parquet("gs://open-targets-pre-data-releases/24.12-uo_test-3/output/genetics/parquet/study_index")
 
 study_index_w_correct_type = (
     study_table.select(
@@ -87,14 +87,14 @@ study_index_w_correct_type = (
     .join(
         index
         # Get eQTL Catalogue studies
-        .filter(F.col("studyType") != "gwas")
-        .filter(~F.col("studyId").startswith("UKB_PPP"))
+        .filter(F.col("studyType") != "gwas").filter(
+            ~F.col("studyId").startswith("UKB_PPP")
+        )
         # Remove measured trait
         .withColumn(
             "extracted_column",
             F.regexp_replace(F.col("studyId"), r"(_ENS.*|_ILMN.*|_X.*|_[0-9]+:.*)", ""),
-        )
-        .withColumn(
+        ).withColumn(
             "extracted_column",
             # After the previous cleanup, there are multiple traits from the same publication starting with the gene symbol that need to be removed (e.g. `Sun_2018_aptamer_plasma_ANXA2.4961.17.1..1`)
             F.when(
@@ -123,8 +123,7 @@ fixed = (
         F.when(
             F.col("toFix"), F.regexp_replace(F.col("studyType"), r"sc", "")
         ).otherwise(F.col("studyType")),
-    )
-    .drop("toFix", "extracted_column", "study_type")
+    ).drop("toFix", "extracted_column", "study_type")
 ).persist()
 all_studies = index.join(
     fixed.selectExpr("studyId", "newStudyType"), on="studyId", how="left"
@@ -135,7 +134,7 @@ fixedIndex = all_studies.withColumn(
         F.col("studyType")
     ),
 ).drop("newStudyType")
-#### fixed  
+#### fixed
 
 newColoc = (
     new.join(
@@ -160,7 +159,12 @@ newColoc = (
     )
     .join(
         fixedIndex.selectExpr(  ### bring modulated target on right side (QTL study)
-            "studyId as rightStudyId", "geneId", "projectId", "studyType as indexStudyType", "condition", "biosampleId"
+            "studyId as rightStudyId",
+            "geneId",
+            "projectId",
+            "studyType as indexStudyType",
+            "condition",
+            "biosampleId",
         ),
         on="rightStudyId",
         how="left",
@@ -280,38 +284,59 @@ assessment, evidences, actionType, oncolabel = temporary_directionOfEffect(
     path, datasource_filter
 )
 
-drugApproved=spark.read.parquet("gs://ot-team/irene/l2g/validation/chembl_w_flags").drop("clinicalTrialId","isComplex"
-).withColumn("isApproved", F.when(F.col("isApproved")=="true", F.lit(1)).otherwise(F.lit(0))).distinct()
+drugApproved = (
+    spark.read.parquet("gs://ot-team/irene/l2g/validation/chembl_w_flags")
+    .drop("clinicalTrialId", "isComplex")
+    .withColumn(
+        "isApproved",
+        F.when(F.col("isApproved") == "true", F.lit(1)).otherwise(F.lit(0)),
+    )
+    .distinct()
+)
 
-analysis_chembl_indication = (discrepancifier(
-    assessment.filter((F.col("datasourceId") == "chembl"))
-    .join(drugApproved.filter(F.col("isApproved")==1), on=["targetId","diseaseId","drugId"], how="left")
-    .withColumn(
-        "maxClinPhase",
-        F.max(F.col("clinicalPhase")).over(Window.partitionBy("targetId", "diseaseId")),
+analysis_chembl_indication = (
+    discrepancifier(
+        assessment.filter((F.col("datasourceId") == "chembl"))
+        .join(
+            drugApproved.filter(F.col("isApproved") == 1),
+            on=["targetId", "diseaseId", "drugId"],
+            how="left",
+        )
+        .withColumn(
+            "maxClinPhase",
+            F.max(F.col("clinicalPhase")).over(
+                Window.partitionBy("targetId", "diseaseId")
+            ),
+        )
+        .withColumn(
+            "approvedDrug",
+            F.max(F.col("isApproved")).over(
+                Window.partitionBy("targetId", "diseaseId")
+            ),
+        )
+        .groupBy("targetId", "diseaseId", "maxClinPhase", "approvedDrug")
+        .pivot("homogenized")
+        .agg(F.count("targetId"))
     )
-    .withColumn(
-        "approvedDrug",
-        F.max(F.col("isApproved")).over(Window.partitionBy("targetId", "diseaseId")),
-    )
-    .groupBy("targetId", "diseaseId", "maxClinPhase","approvedDrug")
-    .pivot("homogenized")
-    .agg(F.count("targetId"))
-    ).filter(F.col("coherencyDiagonal") == "coherent")
+    .filter(F.col("coherencyDiagonal") == "coherent")
     .drop(
         "coherencyDiagonal", "coherencyOneCell", "noEvaluable", "GoF_risk", "LoF_risk"
     )
     .withColumnRenamed("GoF_protect", "drugGoF_protect")
     .withColumnRenamed("LoF_protect", "drugLoF_protect")
-    .withColumn("approved", 
-        F.when(F.col("approvedDrug")==1, F.lit("yes")
-        ).otherwise(F.lit("no"))
+    .withColumn(
+        "approved",
+        F.when(F.col("approvedDrug") == 1, F.lit("yes")).otherwise(F.lit("no")),
     )
-    .withColumn("newPhases",
-        F.when(F.col("approvedDrug")==1, F.lit(4)
-        ).when(F.col("approvedDrug").isNull(), 
-            F.when(F.col("maxClinPhase")==4,F.lit(3)
-            ).otherwise(F.col("maxClinPhase"))))
+    .withColumn(
+        "newPhases",
+        F.when(F.col("approvedDrug") == 1, F.lit(4)).when(
+            F.col("approvedDrug").isNull(),
+            F.when(F.col("maxClinPhase") == 4, F.lit(3)).otherwise(
+                F.col("maxClinPhase")
+            ),
+        ),
+    )
     .persist()
 )
 
@@ -357,8 +382,9 @@ benchmark = (
             )
             .otherwise(F.lit("no")),
         )
-    )
-    .filter(F.col("name") != "COVID-19")  #### remove COVID-19 associations
+    ).filter(
+        F.col("name") != "COVID-19"
+    )  #### remove COVID-19 associations
 ).join(biosample.select("biosampleId", "biosampleName"), on="biosampleId", how="left")
 
 #### Analysis
@@ -373,7 +399,7 @@ disdic = {}
 for col_name in variables_study:
     # Extract distinct values for the column
     distinct_values = benchmark.select(col_name).distinct().collect()
-    
+
     # Populate the dictionary
     for row in distinct_values:
         distinct_value = row[col_name]
@@ -387,9 +413,11 @@ from scipy.stats import fisher_exact
 from scipy.stats.contingency import odds_ratio
 from pyspark.sql.types import *
 
+
 def convertTuple(tup):
     st = ",".join(map(str, tup))
     return st
+
 
 #####3 run in a function
 def aggregations_original(
@@ -439,7 +467,7 @@ def aggregations_original(
         .filter(F.col("comparison").isNotNull())
         .distinct()
     )
-    '''
+    """
     out.write.mode("overwrite").parquet(
         "gs://ot-team/jroldan/"
         + str(
@@ -457,8 +485,8 @@ def aggregations_original(
             + ".parquet"
         )
     )
-    '''
-    
+    """
+
     listado.append(
         "gs://ot-team/jroldan/"
         + str(
@@ -537,11 +565,11 @@ def aggregations_original(
     return results
 
 
-
 #### 3 Loop over different datasets (as they will have different rows and columns)
 
-def comparisons_df_iterative(disdic,projectId):
-    toAnalysis=[(key, value) for key, value in disdic.items() if value == projectId]
+
+def comparisons_df_iterative(disdic, projectId):
+    toAnalysis = [(key, value) for key, value in disdic.items() if value == projectId]
     schema = StructType(
         [
             StructField("comparison", StringType(), True),
@@ -563,11 +591,11 @@ def comparisons_df_iterative(disdic,projectId):
             ("nPhase>=2", "clinical"),
             ("nPhase>=1", "clinical"),
             ("approved", "clinical"),
-
             # ("PhaseT", "clinical"),
         ]
     )
     return comparisons.join(predictions, how="full").collect()
+
 
 full_data = spark.createDataFrame(
     data=[
@@ -597,72 +625,93 @@ variables_study = ["projectId", "biosampleName", "rightStudyType", "colocDoE"]
 print("looping for variables_study")
 
 for variable in variables_study:
-    print("analysing",variable)
+    print("analysing", variable)
     #### build list of comparison and prediction columns
-    rows=comparisons_df_iterative(disdic,variable)
+    rows = comparisons_df_iterative(disdic, variable)
     #### prepare aggregation depending on the variable problem
-    window_spec = Window.partitionBy("targetId","diseaseId",variable).orderBy(F.col("pValueExponent").asc(),ignorenulls=True) ### ignore nulls aded 29.01.2025
-    #### take directionality from lowest p value
-    bench2=benchmark.withColumn("agree_lowestPval", F.first("AgreeDrug").over(window_spec)
-        ).groupBy("targetId","diseaseId","maxClinPhase","approved","newPhases").pivot(variable).agg(F.collect_set("agree_lowestPVal")
-        ).withColumn(
-        "Phase4",
-        F.when(F.col("maxClinPhase") == 4, F.lit("yes")).otherwise(F.lit("no")),
-        ).withColumn(
+    window_spec = Window.partitionBy("targetId", "diseaseId", variable).orderBy(
+        F.col("pValueExponent").asc()
+    )
+    bench2 = (
+        benchmark.withColumn(
+            "agree_lowestPval",
+            F.first("AgreeDrug", ignorenulls=True).over(
+                window_spec
+            ),  ### ignore nulls aded 29.01.2025
+            #### take directionality from lowest p value
+        )
+        .groupBy("targetId", "diseaseId", "maxClinPhase", "approved", "newPhases")
+        .pivot(variable)
+        .agg(F.collect_set("agree_lowestPVal"))
+        .withColumn(
+            "Phase4",
+            F.when(F.col("maxClinPhase") == 4, F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .withColumn(
             "Phase>=3",
             F.when(F.col("maxClinPhase") >= 3, F.lit("yes")).otherwise(F.lit("no")),
-        ).withColumn(
+        )
+        .withColumn(
             "Phase>=2",
             F.when(F.col("maxClinPhase") >= 2, F.lit("yes")).otherwise(F.lit("no")),
-        ).withColumn(
+        )
+        .withColumn(
             "Phase>=1",
             F.when(F.col("maxClinPhase") >= 1, F.lit("yes")).otherwise(F.lit("no")),
-        ).withColumn( ###  new phases extracted from aproved label 
-        "nPhase4",
-            F.when(F.col("newPhases") == 4, F.lit("yes")).otherwise(F.lit("no")),
-        ).withColumn(
-        "nPhase>=3",
-            F.when(F.col("newPhases") >= 3, F.lit("yes")).otherwise(F.lit("no")),
-        ).withColumn(
-        "nPhase>=2",
-            F.when(F.col("newPhases") >= 2, F.lit("yes")).otherwise(F.lit("no")),
-        ).withColumn(
-        "nPhase>=1",
-            F.when(F.col("newPhases") >= 1, F.lit("yes")).otherwise(F.lit("no")),
-        ).withColumn(
-        "approved",
-            F.when(F.col("approved")=="yes", F.lit("yes")).otherwise(F.lit("no")),
         )
+        .withColumn(  ###  new phases extracted from aproved label
+            "nPhase4",
+            F.when(F.col("newPhases") == 4, F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .withColumn(
+            "nPhase>=3",
+            F.when(F.col("newPhases") >= 3, F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .withColumn(
+            "nPhase>=2",
+            F.when(F.col("newPhases") >= 2, F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .withColumn(
+            "nPhase>=1",
+            F.when(F.col("newPhases") >= 1, F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .withColumn(
+            "approved",
+            F.when(F.col("approved") == "yes", F.lit("yes")).otherwise(F.lit("no")),
+        )
+    )
     #### build columns yes/no for each distinct value in the column variable
     for x, value in [(key, val) for key, val in disdic.items() if val == variable]:
-        print("building columns: ", x,"and",value)
+        print("building columns: ", x, "and", value)
         bench2 = bench2.withColumn(
-            x, 
-            F.when(F.array_contains(F.col(x),"yes"), F.lit("yes")).otherwise(F.lit("no"))
+            x,
+            F.when(F.array_contains(F.col(x), "yes"), F.lit("yes")).otherwise(
+                F.lit("no")
+            ),
         )
-    #### doing aggregations per 
+    #### doing aggregations per
     for row in rows:
-        print("row:",row)
+        print("row:", row)
         results = aggregations_original(bench2, "propagated", listado, *row, today_date)
         result_all.append(results)
-    
+
     schema = StructType(
-    [
-        StructField("group", StringType(), True),
-        StructField("comparison", StringType(), True),
-        StructField("phase", StringType(), True),
-        StructField("oddsRatio", DoubleType(), True),
-        StructField("pValue", DoubleType(), True),
-        StructField("lowerInterval", DoubleType(), True),
-        StructField("upperInterval", DoubleType(), True),
-        StructField("total", StringType(), True),
-        StructField("values", ArrayType(ArrayType(IntegerType())), True),
-        StructField("relSuccess", DoubleType(), True),
-        StructField("rsLower", DoubleType(), True),
-        StructField("rsUpper", DoubleType(), True),
-        StructField("path", StringType(), True),
-    ]
-)
+        [
+            StructField("group", StringType(), True),
+            StructField("comparison", StringType(), True),
+            StructField("phase", StringType(), True),
+            StructField("oddsRatio", DoubleType(), True),
+            StructField("pValue", DoubleType(), True),
+            StructField("lowerInterval", DoubleType(), True),
+            StructField("upperInterval", DoubleType(), True),
+            StructField("total", StringType(), True),
+            StructField("values", ArrayType(ArrayType(IntegerType())), True),
+            StructField("relSuccess", DoubleType(), True),
+            StructField("rsLower", DoubleType(), True),
+            StructField("rsUpper", DoubleType(), True),
+            StructField("path", StringType(), True),
+        ]
+    )
 
 # Convert list of lists to DataFrame
 df = spreadSheetFormatter(spark.createDataFrame(result_all, schema=schema))
