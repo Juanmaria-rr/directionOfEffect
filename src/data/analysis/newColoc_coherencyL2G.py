@@ -399,7 +399,7 @@ for value in values:
 
 def comparisons_df(dataset) -> list:
     """Return list of all comparisons to be used in the analysis"""
-    toAnalysis = dataset.columns[23:]
+    toAnalysis = dataset.drop("clinicalStatus","prediction").columns[22:]
     dataType = ["byDatatype"] * len(toAnalysis)
     l_studies = []
     l_studies.extend([list(a) for a in zip(toAnalysis, dataType)])
