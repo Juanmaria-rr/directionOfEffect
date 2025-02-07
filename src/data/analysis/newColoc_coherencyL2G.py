@@ -19,6 +19,30 @@ import pandas as pd
 
 spark = SparkSession.builder.getOrCreate()
 
+""" ### just showing how i did the dataset
+st9 = spark.read.csv("/Users/juanr/Downloads/ST9.csv", sep=",", header=True)
+st9.filter(
+    (F.col("clinicalStatus").isin(["Terminated", "Withdrawn", "Suspended"]))
+    & (F.col("prediction") == "Negative")
+).groupBy(
+    "targetId", "diseaseId", "clinicalStatus", "prediction"
+).count().toPandas().to_csv(
+    "targetDiseaseStoppedNegative.csv"
+)
+"""
+### target-diseases terminated&withdrawal in clin trials
+terminated = spark.read.csv(
+    "gs://ot-team/jroldan/analysis/targetDiseaseStoppedNegative.csv",
+    sep=",",
+    header=True,
+).drop("_c0", "Withdrawn")
+
+terminated_array = (
+    terminated.groupBy("targetId", "diseaseId")
+    .agg(F.collect_set("clinicalStatus").alias("clinicalStatus"))
+    .withColumn("prediction", F.when(F.col("clinicalStatus").isNotNull(), F.lit("yes")))
+)
+
 path = "gs://open-targets-pre-data-releases/24.12-uo_test-3/output/etl/parquet/"
 
 evidences = (
@@ -169,7 +193,7 @@ dict_comb = {}
 
 
 def benchmarkOT(
-    dict_comb, value, gwasCredibleAssocDistances, analysis_chembl, list_l2g
+    dict_comb, value, gwasCredibleAssocDistances, analysis_chembl,terminated_array, list_l2g
 ):
     dict_comb = {
         "hasGeneticEvidence": f"{value}",
@@ -324,6 +348,10 @@ def benchmarkOT(
                 & (F.col("coherencyDiagonal").isin(["coherent", "dispar"])),
                 F.lit("yes"),
             ).otherwise(F.lit("no")),
+        ).join(terminated_array, on=["targetId", "diseaseId"], how="left")
+        .withColumn(
+            "PhaseT",
+            F.when(F.col("prediction") == "yes", F.lit("yes")).otherwise(F.lit("no")),
         )
         .select(
             ["*"]
@@ -361,17 +389,17 @@ datasetDict = {}
 for value in values:
     if value == "max_L2GScore":
         datasetDict[f"df_l2g_original"] = benchmarkOT(
-            dict_comb, value, gwasCredibleAssocDistances, analysis_chembl, list_l2g
+            dict_comb, value, gwasCredibleAssocDistances, analysis_chembl,terminated_array, list_l2g
         )
     else:
         datasetDict[f"{value}"] = benchmarkOT(
-            dict_comb, value, gwasCredibleAssocDistances, analysis_chembl, list_l2g
+            dict_comb, value, gwasCredibleAssocDistances, analysis_chembl,terminated_array, list_l2g
         )
 
 
 def comparisons_df(dataset) -> list:
     """Return list of all comparisons to be used in the analysis"""
-    toAnalysis = dataset.columns[22:]
+    toAnalysis = dataset.columns[23:]
     dataType = ["byDatatype"] * len(toAnalysis)
     l_studies = []
     l_studies.extend([list(a) for a in zip(toAnalysis, dataType)])
