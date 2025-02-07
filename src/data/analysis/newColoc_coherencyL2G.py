@@ -21,6 +21,27 @@ spark = SparkSession.builder.getOrCreate()
 
 path = "gs://open-targets-pre-data-releases/24.12-uo_test-3/output/etl/parquet/"
 
+evidences = (
+    spark.read.parquet(f"{path}evidence")
+    .filter(
+        F.col("datasourceId").isin(
+            [
+                "ot_genetics_portal",
+                "gene_burden",
+                "eva",
+                "eva_somatic",
+                "gene2phenotype",
+                "orphanet",
+                "cancer_gene_census",
+                "intogen",
+                "impc",
+                "chembl",
+            ]
+        )
+    )
+    #.persist()
+)
+
 gwasResolvedColoc = build_gwasResolvedColoc(path)
 
 #### take the direction from the lowest p value
