@@ -2,8 +2,8 @@
 
 #from DoEAssessment import directionOfEffect
 from functions import temporary_directionOfEffect,build_gwasResolvedColoc
-from pyspark.sql import SparkSession
-import pyspark.sql.functions as F, Window 
+from pyspark.sql import SparkSession, Window
+import pyspark.sql.functions as F
 from pyspark.ml.feature import QuantileDiscretizer
 
 spark = SparkSession.builder.getOrCreate()
