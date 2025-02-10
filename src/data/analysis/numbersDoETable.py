@@ -44,9 +44,8 @@ evidences = spark.read.parquet(
 ### take only the ones with datasources for DoE
 evidences = evidences.filter(F.col("datasourceId").isin(doe_sources))
 
-
 assessment, evidences, actionType, oncolabel= (
-        temporary_directionOfEffect(evidences, doe_sources)
+        temporary_directionOfEffect(path, doe_sources)
         .withColumn("datasourceAll", F.lit("All"))
     )
 
