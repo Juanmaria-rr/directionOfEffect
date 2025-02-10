@@ -1,7 +1,7 @@
 """ Build datasets with DoE evidence and assoc numbers"""
 
 #from DoEAssessment import directionOfEffect
-from functions import temporary_directionOfEffect,build_gwasResolvedColoc
+from functions import temporary_directionOfEffect,build_gwasResolvedColoc_noPropag
 from pyspark.sql import SparkSession, Window
 import pyspark.sql.functions as F
 from pyspark.ml.feature import QuantileDiscretizer
@@ -44,28 +44,36 @@ evidences = spark.read.parquet(
 ### take only the ones with datasources for DoE
 evidences = evidences.filter(F.col("datasourceId").isin(doe_sources))
 
+diseases = spark.read.parquet(f"{path}diseases/")
 assessment, evidences, actionType, oncolabel= (
         temporary_directionOfEffect(path, doe_sources))
 
 
-gwasResolvedColoc = build_gwasResolvedColoc(path)
+gwasResolvedColoc,gwasComplete = build_gwasResolvedColoc_noPropag(path)
 
 #### take the direction from the lowest p value
 window_spec = Window.partitionBy("targetId", "diseaseId").orderBy(
     F.col("pValueExponent").asc()
 )
+
 gwasCredibleAssoc = (
     gwasResolvedColoc.withColumn(
-        "homogenized", F.first("colocDoE", ignorenulls=True).over(window_spec)
-    )  ## added 30.01.2025
-    .select("targetId", "diseaseId", "homogenized")
-    .withColumn(
+        "homogenized", F.first("colocDoE", ignorenulls=True).over(window_spec) ## added 30.01.2025
+    ).withColumn(
         "homogenized",
         F.when(F.col("homogenized").isNull(), F.lit("noEvaluable")).otherwise(
             F.col("homogenized")
         ),
-    )
-)
+    ).withColumn("variantEffect", 
+                F.when(F.col("homogenized").isin(["LoF_protect","LoF_risk"]), F.lit("lof")
+                ).when(F.col("homogenized").isin(["GoF_protect","GoF_risk"]), F.lit("gof")
+                ).otherwise(F.lit("noEvaluable"))
+    ).withColumn("directionOnTrait", 
+                F.when(F.col("homogenized").isin(["LoF_protect","GoF_protect"]), F.lit("protect")
+                ).when(F.col("homogenized").isin(["LoF_risk","GoF_risk"]), F.lit("risk")
+                ).otherwise(F.lit("noEvaluable"))
+    ).select("targetId", "diseaseId", "homogenized","variantEffect","directionOnTrait"))
+
 
 ### replace     
 assessment = assessment.unionByName(
@@ -180,7 +188,7 @@ print("read function")
 
 print("executing function")
 
-dataset=datasets_numbers_trait(assessment, 7)
+dataset=datasets_numbers_trait(assessment, 11)
 print("executed function")
 print("printing dataset")
 dataset.toPandas().to_csv("gs://ot-team/jroldan/analysis/numbersDoeTable.csv")
