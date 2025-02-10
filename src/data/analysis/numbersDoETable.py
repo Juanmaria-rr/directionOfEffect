@@ -1,6 +1,7 @@
 """ Build datasets with DoE evidence and assoc numbers"""
 
-from DoEAssessment import directionOfEffect, temporary_directionOfEffect,build_gwasResolvedColoc
+#from DoEAssessment import directionOfEffect
+from functions import temporary_directionOfEffect,build_gwasResolvedColoc
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F, Window 
 from pyspark.ml.feature import QuantileDiscretizer
