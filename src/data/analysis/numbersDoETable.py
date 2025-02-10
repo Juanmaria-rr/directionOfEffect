@@ -45,7 +45,7 @@ evidences = spark.read.parquet(
 evidences = evidences.filter(F.col("datasourceId").isin(doe_sources))
 
 
-prueba_assessment = (
+assessment, evidences, actionType, oncolabel= (
         temporary_directionOfEffect(evidences, doe_sources)
         .withColumn("datasourceAll", F.lit("All"))
     )
@@ -70,14 +70,14 @@ gwasCredibleAssoc = (
 )
 
 ### replace     
-assessment = prueba_assessment.unionByName(
+assessment = assessment.unionByName(
     gwasCredibleAssoc.withColumn("datasourceId", F.lit("gwas_credible_set")),
     allowMissingColumns=True,
 ).withColumn("niceName", F.col("datasourceId")).replace(replacement_dict, subset=["niceName"])
 
 print("asessment done")
 
-def datasets_numbers_trait(prueba_assessment, buckets_number):
+def datasets_numbers_trait(assessment, buckets_number):
     """This function creates in a long format (suitable for R) the N of evidences and association per
     DoE section. At the end, it creates a column with the corresponding deciles of the numbers to plot their intesntiy
     The deciles are trained using the assoc to avoid underrating numbers from the assoc respecting the evidences
@@ -108,12 +108,12 @@ def datasets_numbers_trait(prueba_assessment, buckets_number):
     ## direction on trait
     unpivot_trait = "stack(2, 'protect', protect, 'risk', risk) as (type, count)"
     trait = (
-        prueba_assessment.filter(F.col("directionOnTrait") != "noEvaluable")
+        assessment.filter(F.col("directionOnTrait") != "noEvaluable")
         .groupBy("niceName")
         .pivot("directionOnTrait")
         .count()
         .union(
-            prueba_assessment.filter(F.col("directionOnTrait") != "noEvaluable")
+            assessment.filter(F.col("directionOnTrait") != "noEvaluable")
             .groupBy("datasourceAll")
             .pivot("directionOnTrait")
             .count()
@@ -127,12 +127,12 @@ def datasets_numbers_trait(prueba_assessment, buckets_number):
     unpivot_function = "stack(2, 'gof', gof, 'lof', lof) as (type, count)"
 
     function = (
-        prueba_assessment.filter(F.col("variantEffect") != "noEvaluable")
+        assessment.filter(F.col("variantEffect") != "noEvaluable")
         .groupBy("niceName")
         .pivot("variantEffect")
         .count()
         .union(
-            prueba_assessment.filter(F.col("variantEffect") != "noEvaluable")
+            assessment.filter(F.col("variantEffect") != "noEvaluable")
             .groupBy("datasourceAll")
             .pivot("variantEffect")
             .count()
@@ -146,14 +146,14 @@ def datasets_numbers_trait(prueba_assessment, buckets_number):
     unpivot_whole = "stack(4, 'LoF_protect', LoF_protect, 'LoF_risk', LoF_risk,'GoF_protect',GoF_protect,'GoF_risk',GoF_risk) as (type, count)"
 
     whole = (
-        prueba_assessment.filter(F.col("homogenized") != "noEvaluable")
+        assessment.filter(F.col("homogenized") != "noEvaluable")
         .groupBy("targetId", "diseaseId", "niceName", "homogenized")
         .count()
         .groupBy("niceName")
         .pivot("homogenized")
         .count()
         .union(
-            prueba_assessment.filter(F.col("homogenized") != "noEvaluable")
+            assessment.filter(F.col("homogenized") != "noEvaluable")
             .groupBy("targetId", "diseaseId", "datasourceAll", "homogenized")
             .count()
             .groupBy("datasourceAll")
@@ -180,7 +180,7 @@ print("read function")
 
 print("executing function")
 
-dataset=datasets_numbers_trait(prueba_assessment, 7)
+dataset=datasets_numbers_trait(assessment, 7)
 print("executed function")
 print("printing dataset")
 dataset.toPandas().to_csv("gs://ot-team/jroldan/analysis/numbersDoeTable.csv")
