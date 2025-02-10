@@ -75,7 +75,7 @@ assessment = prueba_assessment.unionByName(
     allowMissingColumns=True,
 ).withColumn("niceName", F.col("datasourceId")).replace(replacement_dict, subset=["niceName"])
 
-
+print("asessment done")
 
 def datasets_numbers_trait(prueba_assessment, buckets_number):
     """This function creates in a long format (suitable for R) the N of evidences and association per
@@ -174,4 +174,14 @@ def datasets_numbers_trait(prueba_assessment, buckets_number):
     all = function.union(trait).union(whole)
     result = qds.fit(whole).transform(all)  ### train qds in Whole and transform all
     
-    return result.toPandas().to_csv("gs://ot-team/jroldan/analysis/numbersDoeTable.csv")
+    return result
+
+print("read function")
+
+print("executing function")
+
+dataset=datasets_numbers_trait(prueba_assessment, 7)
+print("executed function")
+print("printing dataset")
+dataset.toPandas().to_csv("gs://ot-team/jroldan/analysis/numbersDoeTable.csv")
+print("dataset saved succesfully")
