@@ -45,9 +45,8 @@ evidences = spark.read.parquet(
 evidences = evidences.filter(F.col("datasourceId").isin(doe_sources))
 
 assessment, evidences, actionType, oncolabel= (
-        temporary_directionOfEffect(path, doe_sources)
-        .withColumn("datasourceAll", F.lit("All"))
-    )
+        temporary_directionOfEffect(path, doe_sources))
+
 
 gwasResolvedColoc = build_gwasResolvedColoc(path)
 
@@ -72,7 +71,9 @@ gwasCredibleAssoc = (
 assessment = assessment.unionByName(
     gwasCredibleAssoc.withColumn("datasourceId", F.lit("gwas_credible_set")),
     allowMissingColumns=True,
-).withColumn("niceName", F.col("datasourceId")).replace(replacement_dict, subset=["niceName"])
+    ).withColumn("niceName", F.col("datasourceId")
+    ).replace(replacement_dict, subset=["niceName"]
+    ).withColumn("datasourceAll", F.lit("All"))
 
 print("asessment done")
 
