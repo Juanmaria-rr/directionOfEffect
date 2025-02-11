@@ -443,7 +443,7 @@ def full_analysis_propagation(
                 .otherwise(F.lit("no")),
             ).otherwise(F.lit("no")),
         )
-        .persist()
+        # .persist()
     )
 
 
@@ -585,7 +585,7 @@ def full_analysis_noPropagation(
                 .otherwise(F.lit("no")),
             ).otherwise(F.lit("no")),
         )
-        .persist()
+        # .persist()
     )
 
 
@@ -633,6 +633,19 @@ wocgc_list = [
     "gene2phenotype",
     "gwas_credible_set",
 ]
+wCgc_list = [
+    "gene_burden",
+    "intogen",
+    "eva",
+    "eva_somatic",
+    # "ot_genetics_portal",
+    "impc",
+    "orphanet",
+    "gene2phenotype",
+    "gwas_credible_set",
+    "cancer_gene_census",
+]
+
 datasource_list = [
     "gene_burden",
     "intogen",
@@ -645,6 +658,7 @@ datasource_list = [
     "orphanet",
     "gene2phenotype",
     "WOcgc",
+    "wCgc",
     "somatic",
     "germline",
 ]
@@ -711,6 +725,19 @@ for value in datasource_list:
             dfs_dict_propag[f"df_{value}_Oncology_propag"],
         ) = dataset_builder(
             assessment, wocgc_list, analysis_chembl, terminated_array, diseaseTA
+        )
+    elif value == "wCgc":
+        (
+            dfs_dict[f"df_{value}_All_original"],
+            dfs_dict[f"df_{value}_Other_original"],
+            dfs_dict[f"df_{value}_OtherNull_original"],
+            dfs_dict[f"df_{value}_Oncology_original"],
+            dfs_dict_propag[f"df_{value}_All_propag"],
+            dfs_dict_propag[f"df_{value}_Other_propag"],
+            dfs_dict_propag[f"df_{value}_OtherNull_propag"],
+            dfs_dict_propag[f"df_{value}_Oncology_propag"],
+        ) = dataset_builder(
+            assessment, wCgc_list, analysis_chembl, terminated_array, diseaseTA
         )
     elif value == "germline":
         (
@@ -929,7 +956,7 @@ def aggregations_original(
 
     results.append(
         [
-            comparisonType,
+            df,
             comparisonColumn,
             predictionColumn,
             round(float(resX.split(",")[0]), 2),
@@ -997,9 +1024,21 @@ schema = StructType(
     ]
 )
 
-# Convert list of lists to DataFrame
+from pyspark.sql.functions import regexp_extract
 
-df = spreadSheetFormatter(spark.createDataFrame(results, schema=schema))
+# Convert list of lists to DataFrame
+# Regular expressions
+value_pattern = r"df_([^_]+)_"  # Extracts {value}
+middle_pattern = r"df_[^_]+_([^_]+)_"  # Extracts middle part (All, Other, etc.)
+suffix_pattern = r"(original|propag)$"  # Extracts suffix (original or propag)
+
+df = (
+    spreadSheetFormatter(spark.createDataFrame(results, schema=schema))
+    .withColumn("datasource", regexp_extract("filename", value_pattern, 1))
+    .withColumn("therArea", regexp_extract("filename", middle_pattern, 1))
+    .withColumn("criteria", regexp_extract("filename", suffix_pattern, 1))
+)
+
 df.toPandas().to_csv(f"gs://ot-team/jroldan/analysis/{today_date}_genEvidAnalysis.csv")
 
 print("dataframe written \n Analysis finished")
