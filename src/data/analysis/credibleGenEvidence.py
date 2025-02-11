@@ -66,8 +66,7 @@ terminated = spark.read.csv(
 path = "gs://open-targets-pre-data-releases/24.12-uo_test-3/output/etl/parquet/"
 
 evidences = (
-    spark.read.parquet(f"{path}evidence")
-    .filter(
+    spark.read.parquet(f"{path}evidence").filter(
         F.col("datasourceId").isin(
             [
                 "ot_genetics_portal",
@@ -83,7 +82,7 @@ evidences = (
             ]
         )
     )
-    .persist()
+    # .persist()
 )
 ot_genetics = evidences.filter(F.col("datasourceId") == "ot_genetics_portal")
 
@@ -226,7 +225,7 @@ def analysis_nonPropagated(assessment, analysisDatasources):
         )
         .pivot("homogenized")
         .agg(F.count("targetId"))
-        .persist()
+        # .persist()
     )
 
 
@@ -252,7 +251,7 @@ def analysis_propagated(assessment, analysisDatasources):
         )
         .pivot("homogenized")
         .agg(F.count("targetId"))
-        .persist()
+        # .persist()
     )
 
 
