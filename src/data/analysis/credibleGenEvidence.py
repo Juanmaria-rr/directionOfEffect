@@ -12,8 +12,11 @@ from functions import (
     discrepancifier,
     build_gwasResolvedColoc,
     temporary_directionOfEffect,
+    spreadSheetFormatter,
 )
-from pyspark.sql import SparkSession, Window
+
+from pyspark.sql.functions import regexp_extract  # type: ignore
+from pyspark.sql import SparkSession, Window  # type: ignore
 import pyspark.sql.functions as F
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -955,7 +958,7 @@ def aggregations_original(
 
     results.append(
         [
-            df,
+            data,
             comparisonColumn,
             predictionColumn,
             round(float(resX.split(",")[0]), 2),
@@ -979,6 +982,7 @@ print("start doing aggregations and writing")
 today_date = str(date.today())
 aggSetups_original = comparisons_df()
 listado = []
+results = []
 
 print("starting with non-propagated aggregations at", c)
 
@@ -999,10 +1003,31 @@ for key, df in dfs_dict_propag.items():
     df.unpersist()
     print(key + " df unpersisted")
 
+print("non propagated files wroten succesfully at", c)
+
+
 print("propagated files wroten succesfully at", c)
-
-##### read files and make spreadsheet
-
+print("creating pandas dataframe with resulting rows")
+df_results = pd.DataFrame(
+    results,
+    columns=[
+        "group",
+        "comparison",
+        "phase",
+        "OR",
+        "pValue",
+        "LowCI",
+        "HighCI",
+        "total",
+        "array",
+        "rs",
+        "lowRs",
+        "HighRs",
+        "path",
+    ],
+)
+print("created pandas dataframe")
+print("converting to spark dataframe")
 print("preparing dataframe")
 
 schema = StructType(
@@ -1023,7 +1048,10 @@ schema = StructType(
     ]
 )
 
-from pyspark.sql.functions import regexp_extract
+print("read pattern variables")
+df = spreadSheetFormatter(spark.createDataFrame(df_results, schema=schema))
+print("processed spreadsheet")
+print("writting the dataframe")
 
 # Convert list of lists to DataFrame
 # Regular expressions
@@ -1031,13 +1059,10 @@ value_pattern = r"df_([^_]+)_"  # Extracts {value}
 middle_pattern = r"df_[^_]+_([^_]+)_"  # Extracts middle part (All, Other, etc.)
 suffix_pattern = r"(original|propag)$"  # Extracts suffix (original or propag)
 
-df = (
-    spreadSheetFormatter(spark.createDataFrame(results, schema=schema))
-    .withColumn("datasource", regexp_extract("filename", value_pattern, 1))
-    .withColumn("therArea", regexp_extract("filename", middle_pattern, 1))
-    .withColumn("criteria", regexp_extract("filename", suffix_pattern, 1))
+df.withColumn("datasource", regexp_extract("group", value_pattern, 1)).withColumn(
+    "therArea", regexp_extract("group", middle_pattern, 1)
+).withColumn("criteria", regexp_extract("group", suffix_pattern, 1)).toPandas().to_csv(
+    f"gs://ot-team/jroldan/analysis/{today_date}_genEvidAnalysis.csv"
 )
-
-df.toPandas().to_csv(f"gs://ot-team/jroldan/analysis/{today_date}_genEvidAnalysis.csv")
 
 print("dataframe written \n Analysis finished")
