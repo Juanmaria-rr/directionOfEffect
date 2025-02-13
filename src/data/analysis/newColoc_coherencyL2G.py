@@ -1,6 +1,10 @@
 #### BUILDING THE NEW GWAS GENETIC EVIDENCE FROM COLOC
-from functions import discrepancifier, build_gwasResolvedColoc, relative_success
-from DoEAssessment import directionOfEffect
+from functions import (
+    discrepancifier,
+    build_gwasResolvedColoc,
+    temporary_directionOfEffect,
+    spreadSheetFormatter,
+)
 from pyspark.sql import SparkSession, Window
 import pyspark.sql.functions as F
 import matplotlib.pyplot as plt
@@ -46,8 +50,7 @@ terminated_array = (
 path = "gs://open-targets-pre-data-releases/24.12-uo_test-3/output/etl/parquet/"
 
 evidences = (
-    spark.read.parquet(f"{path}evidence")
-    .filter(
+    spark.read.parquet(f"{path}evidence").filter(
         F.col("datasourceId").isin(
             [
                 "ot_genetics_portal",
@@ -63,7 +66,7 @@ evidences = (
             ]
         )
     )
-    #.persist()
+    # .persist()
 )
 
 gwasResolvedColoc = build_gwasResolvedColoc(path)
@@ -120,12 +123,14 @@ gwasCredibleAssocDistances = gwasCredibleAssoc.join(
 )
 
 print("creating analysis_chembl")
+
+datasource_filter = ["chembl"]
+preanalysis_chembl, evidences, actionType, oncolabel = temporary_directionOfEffect(
+    path, datasource_filter
+)
 analysis_chembl = (
     discrepancifier(
-        directionOfEffect(
-            evidences.filter((F.col("datasourceId") == "chembl")), "24.09"
-        )
-        .withColumn(
+        preanalysis_chembl.withColumn(
             "maxClinPhase",
             F.max(F.col("clinicalPhase")).over(
                 Window.partitionBy("targetId", "diseaseId")
@@ -149,6 +154,11 @@ analysis_chembl = (
         "LoF_protect as LoF_protect_ch",
         "GoF_protect as GoF_protect_ch",
     )
+)
+diseases = spark.read.parquet(f"{path}diseases/")
+diseases2 = diseases.select("id", "parents").withColumn(
+    "diseaseIdPropagated",
+    F.explode_outer(F.concat(F.array(F.col("id")), F.col("parents"))),
 )
 
 ### pivot colocdoE grouping by T-D-studyLocusId-distances
@@ -193,7 +203,12 @@ dict_comb = {}
 
 
 def benchmarkOT(
-    dict_comb, value, gwasCredibleAssocDistances, analysis_chembl,terminated_array, list_l2g
+    dict_comb,
+    value,
+    gwasCredibleAssocDistances,
+    analysis_chembl,
+    terminated_array,
+    list_l2g,
 ):
     dict_comb = {
         "hasGeneticEvidence": f"{value}",
@@ -206,45 +221,82 @@ def benchmarkOT(
     ).collect()[0][
         0
     ]  ## take min value for scalating
+    dataset_original = discrepancifier(
+        gwasCredibleAssocDistances
+        # .filter(F.col("h4").isNotNull()) #### not filter by this because we want to include the L2G AND Coloc question
+        .withColumn(  ### take maximum L2G score per T-D
+            "max_L2GScore",
+            F.max("resourceScore").over(Window.partitionBy("targetId", "diseaseId")),
+        )
+        .withColumn("min_distanceFootprintMean", F.lit(min_value))
+        .withColumn(
+            "scaled_distanceFootprintMean",
+            (F.col("distanceFootprintMean") - F.col("min_distanceFootprintMean"))
+            / (1 - F.col("min_distanceFootprintMean")),
+        )
+        .withColumn(
+            "minDistFootPrintMean",
+            F.min("scaled_distanceFootprintMean").over(
+                Window.partitionBy("targetId", "diseaseId")
+            ),
+        )
+        .withColumn(
+            "minTssDistance",
+            F.min("distanceTssMean").over(Window.partitionBy("targetId", "diseaseId")),
+        )
+        .groupBy(
+            "targetId",
+            "diseaseId",
+            f"{value}",
+            # "leftStudyLocusId",
+        )
+        .pivot("homogenized")
+        .count()
+    )
+    dataset_propag = discrepancifier(
+        gwasCredibleAssocDistances
+        # .filter(F.col("h4").isNotNull()) #### not filter by this because we want to include the L2G AND Coloc question
+        .withColumn(  ### take maximum L2G score per T-D
+            "max_L2GScore",
+            F.max("resourceScore").over(Window.partitionBy("targetId", "diseaseId")),
+        )
+        .withColumn("min_distanceFootprintMean", F.lit(min_value))
+        .withColumn(
+            "scaled_distanceFootprintMean",
+            (F.col("distanceFootprintMean") - F.col("min_distanceFootprintMean"))
+            / (1 - F.col("min_distanceFootprintMean")),
+        )
+        .withColumn(
+            "minDistFootPrintMean",
+            F.min("scaled_distanceFootprintMean").over(
+                Window.partitionBy("targetId", "diseaseId")
+            ),
+        )
+        .withColumn(
+            "minTssDistance",
+            F.min("distanceTssMean").over(Window.partitionBy("targetId", "diseaseId")),
+        )
+        .join(
+            diseases2.selectExpr("id as diseaseId", "diseaseIdPropagated"),
+            on="diseaseId",
+            how="left",
+        )
+        .withColumnRenamed("diseaseId", "oldDiseaseId")
+        .withColumnRenamed("diseaseIdPropagated", "diseaseId")
+        .groupBy(
+            "targetId",
+            "diseaseId",
+            f"{value}",
+            # "leftStudyLocusId",
+        )
+        .pivot("homogenized")
+        .count()
+    )
 
     return (
-        discrepancifier(
-            gwasCredibleAssocDistances
-            # .filter(F.col("h4").isNotNull()) #### not filter by this because we want to include the L2G AND Coloc question
-            .withColumn(  ### take maximum L2G score per T-D
-                "max_L2GScore",
-                F.max("resourceScore").over(
-                    Window.partitionBy("targetId", "diseaseId")
-                ),
-            )
-            .withColumn("min_distanceFootprintMean", F.lit(min_value))
-            .withColumn(
-                "scaled_distanceFootprintMean",
-                (F.col("distanceFootprintMean") - F.col("min_distanceFootprintMean"))
-                / (1 - F.col("min_distanceFootprintMean")),
-            )
-            .withColumn(
-                "minDistFootPrintMean",
-                F.min("scaled_distanceFootprintMean").over(
-                    Window.partitionBy("targetId", "diseaseId")
-                ),
-            )
-            .withColumn(
-                "minTssDistance",
-                F.min("distanceTssMean").over(
-                    Window.partitionBy("targetId", "diseaseId")
-                ),
-            )
-            .groupBy(
-                "targetId",
-                "diseaseId",
-                f"{value}",
-                # "leftStudyLocusId",
-            )
-            .pivot("homogenized")
-            .count()
+        dataset_original.join(
+            analysis_chembl, on=["targetId", "diseaseId"], how="right"
         )
-        .join(analysis_chembl, on=["targetId", "diseaseId"], how="right")
         .withColumn(
             "diagonalAgreeWithDrugs",
             F.when(
@@ -348,7 +400,8 @@ def benchmarkOT(
                 & (F.col("coherencyDiagonal").isin(["coherent", "dispar"])),
                 F.lit("yes"),
             ).otherwise(F.lit("no")),
-        ).join(terminated_array, on=["targetId", "diseaseId"], how="left")
+        )
+        .join(terminated_array, on=["targetId", "diseaseId"], how="left")
         .withColumn(
             "PhaseT",
             F.when(F.col("prediction") == "yes", F.lit("yes")).otherwise(F.lit("no")),
@@ -372,8 +425,137 @@ def benchmarkOT(
                     for n in list_l2g
                 ]
             )
+        ),
+        dataset_propag.join(analysis_chembl, on=["targetId", "diseaseId"], how="right")
+        .withColumn(
+            "diagonalAgreeWithDrugs",
+            F.when(
+                (
+                    (F.col("coherencyDiagonal_ch") == "coherent")
+                    & (F.col("coherencyDiagonal") == "coherent")
+                )
+                # & (F.col("coherencyDiagonal") == "coherent")
+                ,
+                F.when(
+                    (F.col("LoF_protect_ch").isNotNull())
+                    & (
+                        F.col("GoF_risk").isNotNull() | F.col("LoF_protect").isNotNull()
+                    ),
+                    F.lit("coherent"),
+                )
+                .when(
+                    F.col("GoF_protect_ch").isNotNull()
+                    & (
+                        F.col("LoF_risk").isNotNull() | F.col("GoF_protect").isNotNull()
+                    ),
+                    F.lit("coherent"),
+                )
+                .otherwise(F.lit("dispar")),
+            ),
         )
-        .persist()
+        .withColumn(
+            "oneCellAgreeWithDrugs",
+            F.when(
+                (
+                    (F.col("coherencyOneCell_ch") == "coherent")
+                    & (F.col("coherencyDiagonal") == "coherent")
+                )
+                # & (F.col("coherencyOneCell") == "coherent")
+                ,
+                F.when(
+                    (F.col("LoF_protect_ch").isNotNull())
+                    & (
+                        (F.col("LoF_protect").isNotNull())
+                        & (F.col("LoF_risk").isNull())
+                        & (F.col("GoF_protect").isNull())
+                        & (F.col("GoF_risk").isNull())
+                    ),
+                    F.lit("coherent"),
+                )
+                .when(
+                    (F.col("GoF_protect_ch").isNotNull())
+                    & (
+                        (F.col("GoF_protect").isNotNull())
+                        & (F.col("LoF_risk").isNull())
+                        & (F.col("LoF_protect").isNull())
+                        & (F.col("GoF_risk").isNull())
+                    ),
+                    F.lit("coherent"),
+                )
+                .otherwise(F.lit("dispar")),
+            ),
+            # ).filter(
+            #    F.col("diagonalAgreeWithDrugs").isNotNull()
+        )
+        .withColumn(
+            "Phase4",
+            F.when(F.col("maxClinPhase") == 4, F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .withColumn(
+            "Phase>=3",
+            F.when(F.col("maxClinPhase") >= 3, F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .withColumn(
+            "Phase>=2",
+            F.when(F.col("maxClinPhase") >= 2, F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .withColumn(
+            "Phase>=1",
+            F.when(F.col("maxClinPhase") >= 1, F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .withColumn(
+            "Phase0",
+            F.when(F.col("maxClinPhase") == 0, F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .withColumn(
+            "diagonalYes",
+            F.when(
+                F.col("diagonalAgreeWithDrugs") == "coherent", F.lit("yes")
+            ).otherwise(F.lit("no")),
+        )
+        .withColumn(
+            "oneCellYes",
+            F.when(
+                F.col("oneCellAgreeWithDrugs") == "coherent", F.lit("yes")
+            ).otherwise(F.lit("no")),
+        )
+        .withColumn(
+            "hasGeneticEvidence",
+            F.when(F.col(f"{value}").isNotNull(), F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .withColumn(
+            "L2GAndColoc",
+            F.when(
+                (F.col(f"{value}").isNotNull())
+                & (F.col("coherencyDiagonal").isin(["coherent", "dispar"])),
+                F.lit("yes"),
+            ).otherwise(F.lit("no")),
+        )
+        .join(terminated_array, on=["targetId", "diseaseId"], how="left")
+        .withColumn(
+            "PhaseT",
+            F.when(F.col("prediction") == "yes", F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .select(
+            ["*"]
+            + (
+                [  ### single columns
+                    F.when(F.col(f"{value}") >= n, F.lit("yes"))
+                    .otherwise(F.lit("no"))
+                    .alias(f"{value}>={str(n).replace('.', '_')}")
+                    for n in list_l2g
+                ]
+            )
+            + (
+                [  ### column combinations for Yes/No colums Plus has DoE (any agreement)
+                    F.when((F.col(a) == "yes") & (F.col(x) >= n), F.lit("yes"))
+                    .otherwise(F.lit("no"))
+                    .alias(f"{x}>={str(n).replace('.', '_')}&{a}_combined")
+                    for a, x in dict_comb.items()
+                    for n in list_l2g
+                ]
+            )
+        ),
     )
 
 
@@ -386,20 +568,37 @@ values = [
 ]
 
 datasetDict = {}
+datasetDict_propag = {}
+
 for value in values:
     if value == "max_L2GScore":
-        datasetDict[f"df_l2g_original"] = benchmarkOT(
-            dict_comb, value, gwasCredibleAssocDistances, analysis_chembl,terminated_array, list_l2g
+        (
+            datasetDict[f"max_L2GScore_original"],
+            datasetDict_propag[f"max_L2GScore_propag"],
+        ) = benchmarkOT(
+            dict_comb,
+            value,
+            gwasCredibleAssocDistances,
+            analysis_chembl,
+            terminated_array,
+            list_l2g,
         )
     else:
-        datasetDict[f"{value}"] = benchmarkOT(
-            dict_comb, value, gwasCredibleAssocDistances, analysis_chembl,terminated_array, list_l2g
+        datasetDict[f"{value}_original"], datasetDict_propag[f"{value}_propag"] = (
+            benchmarkOT(
+                dict_comb,
+                value,
+                gwasCredibleAssocDistances,
+                analysis_chembl,
+                terminated_array,
+                list_l2g,
+            )
         )
 
 
 def comparisons_df(dataset) -> list:
     """Return list of all comparisons to be used in the analysis"""
-    toAnalysis = dataset.drop("clinicalStatus","prediction").columns[22:]
+    toAnalysis = dataset.drop("clinicalStatus", "prediction").columns[22:]
     dataType = ["byDatatype"] * len(toAnalysis)
     l_studies = []
     l_studies.extend([list(a) for a in zip(toAnalysis, dataType)])
@@ -613,13 +812,24 @@ print("launched function to run analysis")
 
 listado = []
 today_date = str(date.today())
+aggSetups_original = comparisons_df(datasetDict["max_L2GScore_original"])
+
 for key, df_analysis in datasetDict.items():
-    aggSetups_original = comparisons_df(df_analysis)
     print("corresponding dataframe key: ", key)
     df_analysis.persist()
     for row in aggSetups_original:
-        print(key, value)
+        print(key)
         aggregations_original(df_analysis, key, listado, *row, today_date)
+    df_analysis.unpersist()
+    print("unpersist df")
+for key, df_analysis in datasetDict_propag.items():
+    print("corresponding dataframe key: ", key)
+    df_analysis.persist()
+    for row in aggSetups_original:
+        print(key)
+        aggregations_original(df_analysis, key, listado, *row, today_date)
+    df_analysis.unpersist()
+    print("unpersist df")
 
 print("finished analysis")
 print("creating pandas dataframe with resulting rows")
@@ -678,7 +888,12 @@ df = (
         "comparison",
         F.regexp_replace(F.col("comparison"), "_combined$", ""),  ### trims "combined"
     )
+    .withColumn(
+        "dimension", F.regexp_extract(F.col("your_column"), r"_(original|propag)", 1)
+    )
 )
+
+
 print("writting dataframe")
 df.toPandas().to_csv(
     f"gs://ot-team/jroldan/analysis/{today_date}_newColoc_L2Gbenchmark.csv"
