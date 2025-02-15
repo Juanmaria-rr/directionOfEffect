@@ -598,7 +598,7 @@ for value in values:
 
 def comparisons_df(dataset) -> list:
     """Return list of all comparisons to be used in the analysis"""
-    toAnalysis = dataset.drop("clinicalStatus", "prediction").columns[22:]
+    toAnalysis = dataset.drop("clinicalStatus", "prediction", "PhaseT").columns[22:]
     dataType = ["byDatatype"] * len(toAnalysis)
     l_studies = []
     l_studies.extend([list(a) for a in zip(toAnalysis, dataType)])
@@ -817,14 +817,17 @@ aggSetups_original = comparisons_df(datasetDict["max_L2GScore_original"])
 for key, df_analysis in datasetDict.items():
     print("corresponding dataframe key: ", key)
     df_analysis.persist()
+    aggSetups_original = comparisons_df(df_analysis)
     for row in aggSetups_original:
         print(key)
         aggregations_original(df_analysis, key, listado, *row, today_date)
     df_analysis.unpersist()
     print("unpersist df")
+
 for key, df_analysis in datasetDict_propag.items():
     print("corresponding dataframe key: ", key)
     df_analysis.persist()
+    aggSetups_original = comparisons_df(df_analysis)
     for row in aggSetups_original:
         print(key)
         aggregations_original(df_analysis, key, listado, *row, today_date)
@@ -888,9 +891,7 @@ df = (
         "comparison",
         F.regexp_replace(F.col("comparison"), "_combined$", ""),  ### trims "combined"
     )
-    .withColumn(
-        "dimension", F.regexp_extract(F.col("your_column"), r"_(original|propag)", 1)
-    )
+    .withColumn("dimension", F.regexp_extract(F.col("type"), r"_(original|propag)", 1))
 )
 
 
