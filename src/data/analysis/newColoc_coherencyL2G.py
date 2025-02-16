@@ -140,21 +140,20 @@ analysis_chembl = (
         .pivot("homogenized")
         .agg(F.count("targetId"))
         .persist()
-    )
-    .filter(  ### ensure drug has annotated MoA and is coherent per Target-Disease
-        ((F.col("GoF_protect").isNotNull()) | F.col("LoF_protect").isNotNull())
-        & (F.col("coherencyDiagonal") == "coherent")
-    )
-    .selectExpr(
-        "targetId",
-        "diseaseId",
-        "maxClinPhase",
-        "coherencyDiagonal as coherencyDiagonal_ch",
-        "coherencyOneCell as coherencyOneCell_ch",
-        "LoF_protect as LoF_protect_ch",
-        "GoF_protect as GoF_protect_ch",
-    )
+    )  #### avoid the
+    #    .filter(  ### ensure drug has annotated MoA and is coherent per Target-Disease
+    #        ((F.col("GoF_protect").isNotNull()) | F.col("LoF_protect").isNotNull())
+    #        & (F.col("coherencyDiagonal") == "coherent")
+).selectExpr(
+    "targetId",
+    "diseaseId",
+    "maxClinPhase",
+    "coherencyDiagonal as coherencyDiagonal_ch",
+    "coherencyOneCell as coherencyOneCell_ch",
+    "LoF_protect as LoF_protect_ch",
+    "GoF_protect as GoF_protect_ch",
 )
+# )
 diseases = spark.read.parquet(f"{path}diseases/")
 diseases2 = diseases.select("id", "parents").withColumn(
     "diseaseIdPropagated",
@@ -616,9 +615,9 @@ def comparisons_df(dataset) -> list:
     predictions = spark.createDataFrame(
         data=[
             ("Phase4", "clinical"),
-            ("Phase>=3", "clinical"),
-            ("Phase>=2", "clinical"),
-            ("Phase>=1", "clinical"),
+            # ("Phase>=3", "clinical"),
+            # ("Phase>=2", "clinical"),
+            # ("Phase>=1", "clinical"),
             ("PhaseT", "clinical"),
         ]
     )
@@ -815,24 +814,24 @@ today_date = str(date.today())
 aggSetups_original = comparisons_df(datasetDict["max_L2GScore_original"])
 
 for key, df_analysis in datasetDict.items():
-    print("corresponding dataframe key: ", key)
+    print("original", key)
     df_analysis.persist()
     aggSetups_original = comparisons_df(df_analysis)
     for row in aggSetups_original:
         print(key)
         aggregations_original(df_analysis, key, listado, *row, today_date)
     df_analysis.unpersist()
-    print("unpersist df")
+    print("unpersist original", key)
 
 for key, df_analysis in datasetDict_propag.items():
-    print("corresponding dataframe key: ", key)
+    print("propagated", key)
     df_analysis.persist()
     aggSetups_original = comparisons_df(df_analysis)
     for row in aggSetups_original:
         print(key)
         aggregations_original(df_analysis, key, listado, *row, today_date)
     df_analysis.unpersist()
-    print("unpersist df")
+    print("unpersist propagated", key)
 
 print("finished analysis")
 print("creating pandas dataframe with resulting rows")
