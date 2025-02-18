@@ -613,6 +613,11 @@ full_data = spark.createDataFrame(
 )
 print("created full_data and lists")
 
+rightTissue = spark.read.csv(
+    "gs://ot-team/jroldan/analysis/jroldan_analysis_curationBioSampleNameDiseaseCredibleSet_curated.csv/",
+    header=True,
+).drop("_c0", "rightTissue2", "_c6", "therapeuticAreas")
+
 result = []
 result_st = []
 result_ci = []
@@ -633,14 +638,44 @@ for variable in variables_study:
         F.col("pValueExponent").asc()
     )
     bench2 = (
-        benchmark.withColumn(
+        benchmark.join(rightTissue, on=["name", "bioSampleName"], how="left")
+        .withColumn(
+            "rightTissue",
+            F.when(F.col("rightTissue1") == "yes", F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .withColumn(
             "agree_lowestPval",
             F.first("AgreeDrug", ignorenulls=True).over(
                 window_spec
             ),  ### ignore nulls aded 29.01.2025
             #### take directionality from lowest p value
         )
-        .groupBy("targetId", "diseaseId", "maxClinPhase", "approved", "newPhases")
+        .withColumn(
+            "isRightTissueSignalAgreed",
+            F.collect_set(
+                F.when(F.col("rightTissue") == "yes", F.col("agree_lowestPval"))
+            ).over(window_spec),
+        )
+        .withColumn(
+            "isSignalFromRightTissue",
+            F.first(
+                F.when(
+                    F.col("AgreeDrug") == F.col("agree_lowestPval"),
+                    F.col("rightTissue"),
+                ),
+                ignorenulls=True,
+            ).over(window_spec),
+        )
+        .groupBy(
+            "targetId",
+            "diseaseId",
+            "maxClinPhase",
+            "approved",
+            "newPhases",
+            "rightTissue",
+            "isRightTissueSignalAgreed",
+            "isSignalFromRightTissue",
+        )
         .pivot(variable)
         .agg(F.collect_set("agree_lowestPVal"))
         .withColumn(
@@ -679,16 +714,57 @@ for variable in variables_study:
             "approved",
             F.when(F.col("approved") == "yes", F.lit("yes")).otherwise(F.lit("no")),
         )
-    )
-    #### build columns yes/no for each distinct value in the column variable
-    for x, value in [(key, val) for key, val in disdic.items() if val == variable]:
-        print("building columns: ", x, "and", value)
-        bench2 = bench2.withColumn(
-            x,
-            F.when(F.array_contains(F.col(x), "yes"), F.lit("yes")).otherwise(
-                F.lit("no")
-            ),
+        .select(
+            ["*"]
+            + (
+                [  ### single columns
+                    F.when(F.array_contains(F.col(x), "yes"), F.lit("yes"))
+                    .otherwise(F.lit("no"))
+                    .alias(f"{x}_only")
+                    for x, value in [
+                        (key, val) for key, val in disdic.items() if val == variable
+                    ]
+                ]
+            )
+            + (
+                [  ### single columns
+                    F.when(
+                        (F.array_contains(F.col(x), "yes"))
+                        & (F.col("rightTissue") == "yes"),
+                        F.lit("yes"),
+                    )
+                    .otherwise(F.lit("no"))
+                    .alias(f"{x}_tissue")
+                    for x, value in [
+                        (key, val) for key, val in disdic.items() if val == variable
+                    ]
+                ]
+            )  ##### isSignalFromRightTissue
+            + (
+                [
+                    F.when(F.col("isSignalFromRightTissue") == "yes", F.lit("yes"))
+                    .otherwise(F.lit("no"))
+                    .alias(f"{x}_isSignalFromRightTissue")
+                    for x, value in [
+                        (key, val) for key, val in disdic.items() if val == variable
+                    ]
+                ]
+            )  ##### is right tissue signal agree with drug?
+            + (
+                [
+                    F.when(
+                        F.array_contains(F.col("isRightTissueSignalAgreed"), "yes"),
+                        F.lit("yes"),
+                    )
+                    .otherwise(F.lit("no"))
+                    .alias(f"{x}_isRightTissueSignalAgreed")
+                    for x, value in [
+                        (key, val) for key, val in disdic.items() if val == variable
+                    ]
+                ]
+            )
         )
+    )
     #### doing aggregations per
     for row in rows:
         print("row:", row)
