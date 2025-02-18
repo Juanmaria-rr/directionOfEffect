@@ -806,13 +806,13 @@ df = (
     .withColumn(
         "prefix",
         F.regexp_replace(
-            F.col("original_column"), regex_pattern + ".*", ""
+            F.col("comparison"), regex_pattern + ".*", ""
         ),  # Extract part before the pattern
     )
     .withColumn(
         "suffix",
         F.regexp_extract(
-            F.col("original_column"), regex_pattern, 0
+            F.col("comparison"), regex_pattern, 0
         ),  # Extract the pattern itself
     )
 )
