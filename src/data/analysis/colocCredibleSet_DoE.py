@@ -568,7 +568,7 @@ def aggregations_original(
 
 def comparisons_df_iterative(df):
     # toAnalysis = [(key, value) for key, value in disdic.items() if value == projectId]
-    toAnalysis = df.columns[18:]
+    toAnalysis = [(col, "predictor") for col in df.columns[18:]]
     schema = StructType(
         [
             StructField("comparison", StringType(), True),
@@ -762,9 +762,9 @@ for variable in variables_study:
                 ]
             )
         )
-        ).persist()
-        #### build list of comparison and prediction columns
-    rows = comparisons_df_iterative(bench2)    
+    ).persist()
+    #### build list of comparison and prediction columns
+    rows = comparisons_df_iterative(bench2)
     #### doing aggregations per
     for row in rows:
         print("row:", row)
