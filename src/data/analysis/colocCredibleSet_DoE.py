@@ -83,8 +83,7 @@ study_index_w_correct_type = (
             F.col("sample_group"),
         ).alias("extracted_column"),
         "study_type",
-    )
-    .join(
+    ).join(
         index
         # Get eQTL Catalogue studies
         .filter(F.col("studyType") != "gwas").filter(
@@ -105,7 +104,7 @@ study_index_w_correct_type = (
         on="extracted_column",
         how="right",
     )
-    .persist()
+    # .persist()
 )
 
 fixed = (
@@ -124,10 +123,10 @@ fixed = (
             F.col("toFix"), F.regexp_replace(F.col("studyType"), r"sc", "")
         ).otherwise(F.col("studyType")),
     ).drop("toFix", "extracted_column", "study_type")
-).persist()
+)  # .persist()
 all_studies = index.join(
     fixed.selectExpr("studyId", "newStudyType"), on="studyId", how="left"
-).persist()
+)  # .persist()
 fixedIndex = all_studies.withColumn(
     "studyType",
     F.when(F.col("newStudyType").isNotNull(), F.col("newStudyType")).otherwise(
@@ -169,7 +168,7 @@ newColoc = (
         on="rightStudyId",
         how="left",
     )
-    .persist()
+    # .persist()
 )
 # remove columns without content (only null values on them)
 df = evidences.filter((F.col("datasourceId") == "gwas_credible_sets"))
@@ -185,7 +184,7 @@ non_null_columns = [
 ]
 
 # Select only the non-null columns
-filtered_df = df.select(*non_null_columns).persist()
+filtered_df = df.select(*non_null_columns)  # .persist()
 
 ## bring studyId, variantId, beta from Gwas and pValue
 gwasComplete = filtered_df.join(
@@ -194,7 +193,7 @@ gwasComplete = filtered_df.join(
     ),
     on="studyLocusId",
     how="left",
-).persist()
+)  # .persist()
 
 resolvedColoc = (
     (
@@ -216,8 +215,7 @@ resolvedColoc = (
             F.explode_outer(F.concat(F.array(F.col("diseaseId")), F.col("parents"))),
         )
         .drop("parents", "oldDiseaseId")
-    )
-    .withColumn(
+    ).withColumn(
         "colocDoE",
         F.when(
             F.col("rightStudyType").isin(
@@ -261,7 +259,7 @@ resolvedColoc = (
             ),
         ),
     )
-    .persist()
+    # .persist()
 )
 
 path = "gs://open-targets-pre-data-releases/24.12-uo_test-3/output/etl/parquet/"
@@ -337,7 +335,7 @@ analysis_chembl_indication = (
             ),
         ),
     )
-    .persist()
+    # .persist()
 )
 
 chemblAssoc = (
@@ -568,8 +566,9 @@ def aggregations_original(
 #### 3 Loop over different datasets (as they will have different rows and columns)
 
 
-def comparisons_df_iterative(disdic, projectId):
-    toAnalysis = [(key, value) for key, value in disdic.items() if value == projectId]
+def comparisons_df_iterative(df):
+    # toAnalysis = [(key, value) for key, value in disdic.items() if value == projectId]
+    toAnalysis = df.columns[18:]
     schema = StructType(
         [
             StructField("comparison", StringType(), True),
@@ -631,8 +630,7 @@ print("looping for variables_study")
 
 for variable in variables_study:
     print("analysing", variable)
-    #### build list of comparison and prediction columns
-    rows = comparisons_df_iterative(disdic, variable)
+
     #### prepare aggregation depending on the variable problem
     window_spec = Window.partitionBy("targetId", "diseaseId", variable).orderBy(
         F.col("pValueExponent").asc()
@@ -764,12 +762,15 @@ for variable in variables_study:
                 ]
             )
         )
-    )
+        ).persist()
+        #### build list of comparison and prediction columns
+    rows = comparisons_df_iterative(bench2)    
     #### doing aggregations per
     for row in rows:
         print("row:", row)
         results = aggregations_original(bench2, "propagated", listado, *row, today_date)
         result_all.append(results)
+        bench2.unpersist()
 
     schema = StructType(
         [
