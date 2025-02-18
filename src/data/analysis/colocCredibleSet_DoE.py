@@ -583,15 +583,15 @@ def comparisons_df_iterative(disdic, projectId):
     predictions = spark.createDataFrame(
         data=[
             ("Phase4", "clinical"),
-            ("Phase>=3", "clinical"),
-            ("Phase>=2", "clinical"),
-            ("Phase>=1", "clinical"),
-            ("nPhase4", "clinical"),
-            ("nPhase>=3", "clinical"),
-            ("nPhase>=2", "clinical"),
-            ("nPhase>=1", "clinical"),
-            ("approved", "clinical"),
-            # ("PhaseT", "clinical"),
+            # ("Phase>=3", "clinical"),
+            # ("Phase>=2", "clinical"),
+            # ("Phase>=1", "clinical"),
+            # ("nPhase4", "clinical"),
+            # ("nPhase>=3", "clinical"),
+            # ("nPhase>=2", "clinical"),
+            # ("nPhase>=1", "clinical"),
+            # ("approved", "clinical"),
+            ("PhaseT", "clinical"),
         ]
     )
     return comparisons.join(predictions, how="full").collect()
@@ -788,11 +788,36 @@ for variable in variables_study:
             StructField("path", StringType(), True),
         ]
     )
+import re
+
+# Define the list of patterns to search for
+patterns = [
+    "_only",
+    "_tissue",
+    "_isSignalFromRightTissue",
+    "__isRightTissueSignalAgreed",
+]
+# Create a regex pattern to match any of the substrings
+regex_pattern = "(" + "|".join(map(re.escape, patterns)) + ")"
 
 # Convert list of lists to DataFrame
-df = spreadSheetFormatter(spark.createDataFrame(result_all, schema=schema))
+df = (
+    spreadSheetFormatter(spark.createDataFrame(result_all, schema=schema))
+    .withColumn(
+        "prefix",
+        F.regexp_replace(
+            F.col("original_column"), regex_pattern + ".*", ""
+        ),  # Extract part before the pattern
+    )
+    .withColumn(
+        "suffix",
+        F.regexp_extract(
+            F.col("original_column"), regex_pattern, 0
+        ),  # Extract the pattern itself
+    )
+)
 df.toPandas().to_csv(
-    f"gs://ot-team/jroldan/analysis/{today_date}_credibleSetColocDoEanalysis_fixedIndex_fixedTotalNumber.csv"
+    f"gs://ot-team/jroldan/analysis/{today_date}_credibleSetColocDoEanalysis_RightTissues.csv"
 )
 
 print("dataframe written \n Analysis finished")
