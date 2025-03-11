@@ -1,3 +1,5 @@
+#########
+#####
 #######
 ## ANALYSIS FOR L2G Scores, genetic evidence and Direction of Effect
 ## Original, propagated and Other Vs Oncology
@@ -269,6 +271,7 @@ genEvidDataset = (
     .agg(F.count("targetId").alias("Nr_evidences"))
     .select("targetId", "diseaseId", "Nr_evidences")
     .withColumn("geneticEvidence", F.lit("hasGeneticEvidence"))
+    .drop("Nr_evidences")
 )
 
 coherency_toAssess_others_datasource = (  #### checked 31.05.2023
@@ -354,6 +357,7 @@ otGenetics = (
     )
     # .filter((F.col("homogenized") != "noEvaluable"))
     .join(varDistToGene, on=["variantId", "targetId"], how="left")
+    .join(genEvidDataset, on=["targetId", "diseaseId"], how="left")
     .withColumn(
         "datasources",
         F.collect_set("datasourceId").over(Window.partitionBy("targetId", "diseaseId")),
@@ -478,27 +482,29 @@ otGenetics_propag = (
 def benchmarkOT(discrepancifier, otGenetics, metric):
     dict_comb = {}
     dict_comb = {
-        "diagonalAgreeWithDrugs": f"{metric}",
-        "oneCellAgreeWithDrugs": f"{metric}",
+        "hasGeneticEvidence": f"{metric}",
+        "diagonalYes": f"{metric}",
+        "oneCellYes": f"{metric}",
+        "L2GAndColoc": f"{metric}",
     }
     list_l2g = [
-        0.1,
+        0.10,
         0.15,
-        0.2,
+        0.20,
         0.25,
-        0.3,
+        0.30,
         0.35,
-        0.4,
+        0.40,
         0.45,
-        0.5,
+        0.50,
         0.55,
-        0.6,
+        0.60,
         0.65,
-        0.7,
+        0.70,
         0.75,
-        0.8,
+        0.80,
         0.85,
-        0.9,
+        0.90,
         0.95,
     ]
     list_dist = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -520,6 +526,7 @@ def benchmarkOT(discrepancifier, otGenetics, metric):
             .groupBy(
                 "targetId",
                 "diseaseId",
+                "geneticEvidence",
                 f"{value}",
             )  ##### modifications here to include the groups of ranking/distances to TSS
             .pivot("homogenized")
@@ -528,6 +535,7 @@ def benchmarkOT(discrepancifier, otGenetics, metric):
         .selectExpr(
             "targetId",
             "diseaseId",
+            "geneticEvidence",
             f"{metric}",
             "coherencyDiagonal as coherencyDiagonal",
             "coherencyOneCell as coherencyOneCell",
@@ -549,12 +557,12 @@ def benchmarkOT(discrepancifier, otGenetics, metric):
             on=["targetId", "diseaseId"],
             how="right",
         )
-        .withColumn(
-            "geneticEvidence",
-            F.when(
-                F.col(f"{metric}").isNotNull(), F.lit("hasGeneticEvidence")
-            ).otherwise(F.lit("noGeneticEvidence")),
-        )
+        # .withColumn(
+        #    "geneticEvidence",
+        #    F.when(
+        #        F.col(f"{metric}").isNotNull(), F.lit("hasGeneticEvidence")
+        #    ).otherwise(F.lit("noGeneticEvidence")),
+        # )
         .withColumn(
             "diagonalAgreeWithDrugs",
             F.when(
@@ -651,6 +659,14 @@ def benchmarkOT(discrepancifier, otGenetics, metric):
                 F.col("oneCellAgreeWithDrugs") == "coherent", F.lit("yes")
             ).otherwise(F.lit("no")),
         )
+        .withColumn(
+            "L2GAndColoc",
+            F.when(
+                (F.col("geneticEvidence") == "hasGeneticEvidence")
+                & (F.col("coherencyDiagonal").isin(["coherent", "dispar"])),
+                F.lit("yes"),
+            ).otherwise(F.lit("no")),
+        )
         .select(
             ["*"]
             + (
@@ -669,8 +685,8 @@ def benchmarkOT(discrepancifier, otGenetics, metric):
                 ]
             )
             + (
-                [  ### column combinations
-                    F.when((F.col(a) == "coherent") & (F.col(x) >= n), F.lit("yes"))
+                [  ### column combinations for Yes/No colums Plus has DoE (any agreement)
+                    F.when((F.col(a) == "yes") & (F.col(x) >= n), F.lit("yes"))
                     .otherwise(F.lit("no"))
                     .alias(f"{x}>={str(n).replace('.', '_')}&{a}_combined")
                     for a, x in dict_comb.items()
@@ -678,7 +694,7 @@ def benchmarkOT(discrepancifier, otGenetics, metric):
                 ]
                 if metric == "max_L2GScore"
                 else [
-                    F.when((F.col(a) == "coherent") & (F.col(x) <= n), F.lit("yes"))
+                    F.when((F.col(a) == "yes") & (F.col(x) <= n), F.lit("yes"))
                     .otherwise(F.lit("no"))
                     .alias(f"{x}<={str(n).replace('.', '_')}&{a}_combined")
                     for a, x in dict_comb.items()
@@ -775,6 +791,7 @@ def aggregations_original(
     predictionType,
     today_date,
 ):
+
     wComparison = Window.partitionBy(F.col(comparisonColumn))
     wPrediction = Window.partitionBy(F.col(predictionColumn))
     wPredictionComparison = Window.partitionBy(
@@ -782,7 +799,6 @@ def aggregations_original(
     )
 
     uniqIds = df.select("targetId", "diseaseId").distinct().count()
-
     out = (
         df.withColumn("comparisonType", F.lit(comparisonType))
         .withColumn("predictionType", F.lit(predictionType))
@@ -810,6 +826,7 @@ def aggregations_original(
         .filter(F.col("comparison").isNotNull())
         .distinct()
     )
+
     out.write.mode("overwrite").parquet(
         "gs://ot-team/jroldan/"
         + str(
@@ -825,6 +842,7 @@ def aggregations_original(
             + ".parquet"
         )
     )
+
     listado.append(
         "gs://ot-team/jroldan/"
         + str(
@@ -840,6 +858,7 @@ def aggregations_original(
             + ".parquet"
         )
     )
+
     print(
         today_date
         + "_"
@@ -852,6 +871,7 @@ def aggregations_original(
         + predictionColumn
         + ".parquet"
     )
+
     c = datetime.now()
     c.strftime("%H:%M:%S")
     print(c)
@@ -901,15 +921,17 @@ full_data = spark.createDataFrame(
 #### update the dictionary dfs with other columns included in the analysis
 key_list = [
     "hasGeneticEvidence",
-    "oneCell",
+    "L2GAndColoc",
     "diagonal",
+    "oneCell",
     "max_L2GScore",
     "min_distance_ranking",
 ]
 value_list = [
     "geneticEvidence",
-    "oneCellDoE",
+    "L2GAndColoc",
     "diagonalDoE",
+    "oneCellDoE",
     "L2GScore",
     "TSSDistance",
 ]
@@ -942,6 +964,31 @@ array2 = []
 
 # Initialize an empty list to store the results
 results = []
+
+### define list to detect their presence in the path
+list_l2g = [
+    0.10,
+    0.15,
+    0.20,
+    0.25,
+    0.30,
+    0.35,
+    0.40,
+    0.45,
+    0.50,
+    0.55,
+    0.60,
+    0.65,
+    0.70,
+    0.75,
+    0.80,
+    0.85,
+    0.90,
+    0.95,
+]
+list_dist = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+print("starting reading files and making statistics")
 
 # Iterate over the sample strings and extract the desired substrings
 for path in listado:
@@ -981,6 +1028,9 @@ for path in listado:
             elif "diagonal" in path:
                 comparison = dfs[key]
                 group = "combinedDiagonal"
+            elif "Direction" in path:
+                comparison = dfs[key]
+                group = "combinedHasDoE"
         elif key in path:
             comparison = dfs[key]
             group = key
@@ -999,15 +1049,29 @@ for path in listado:
     elif "distance" in path:
         dataset = "TSSdistance"
 
+    rank = "unknown"
+    for l in list_l2g:
+        if str(l).replace(".", "_") in path:
+            rank = l
+            break
+    string = "ranking<="
+    if rank == "unknown":
+        for r in list_dist:
+            if string + str(r) in path:
+                rank = r
+            else:
+                rank = "unknown"
+
     results.append(
         [
             group,
             dataset,
             comparison,
             dimension,
+            rank,
             phase,
             round(float(resX.split(",")[0]), 2),
-            round(float(resX.split(",")[1]), 20),
+            float(resX.split(",")[1]),
             round(float(resx_CI.split(",")[0]), 2),
             round(float(resx_CI.split(",")[1]), 2),
             str(total),
@@ -1027,6 +1091,7 @@ df = pd.DataFrame(
         "dataset",
         "comparison",
         "dimension",
+        "rank",
         "phase",
         "oddsRatio",
         "pValue",
@@ -1047,6 +1112,7 @@ df = pd.DataFrame(
         "dataset",
         "comparison",
         "dimension",
+        "rank",
         "phase",
         "oddsRatio",
         "pValue",
@@ -1060,8 +1126,8 @@ df = pd.DataFrame(
         "path",
     ],
 )
-
+print("dataframe done")
 print("writing csv file")
-file_name = f"gs://ot-team/jroldan/analysis/{today_date}_analysis.csv"
+file_name = f"gs://ot-team/jroldan/analysis/{today_date}_analysis_coherencyL2G.csv"
 df.to_csv(file_name)
 print("csv succesfully created")

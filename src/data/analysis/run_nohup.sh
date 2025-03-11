@@ -1,16 +1,16 @@
 #!/bin/bash
 
 # Define the description for the analysis
-description="latest version, with pValue using ignorenulls=True. Included approved as phase and analysis"
+description="coloc analysis using right tissue annotation"
 
 # Define abbreviation for file name (simplified, no special characters)
-abbreviation="newColoc_coherencyL2G"
+abbreviation="colocCredibleSet_rightTissues"
 
 # Define the date for the log file
 current_date=$(date '+%Y-%m-%d')
 
 # Define the Python script to run
-python_script="newColoc_coherencyL2G.py"
+python_script="colocCredibleSet_DoE.py"
 
 # Define the log file name (simplified)
 log_filename="${current_date}_analysis_${abbreviation}.log"

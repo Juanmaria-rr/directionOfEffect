@@ -157,10 +157,12 @@ def relative_success(array1):
 
 
 def spreadSheetFormatter(df):
+    print("importing functions")
     from pyspark.sql.functions import format_number
     from pyspark.sql.types import (
         DoubleType,
     )
+    print("imported functions")
 
     new_df = (
         df.withColumn(
@@ -1063,7 +1065,7 @@ def build_gwasResolvedColoc_noPropag(path):
 
     #### Now load sources of data to generate credible_set_OT_genetics evidences and associations.
 
-    diseases = spark.read.parquet(f"{path}diseases/")
+    #diseases = spark.read.parquet(f"{path}diseases/")
 
     credibleEvidence = spark.read.parquet(f"{path}evidence").filter(
         F.col("datasourceId").isin(["gwas_credible_sets"])
@@ -1306,4 +1308,4 @@ def build_gwasResolvedColoc_noPropag(path):
         )
         .persist()
     )
-    return gwasResolvedColoc_noPropag
+    return gwasResolvedColoc_noPropag,gwasComplete

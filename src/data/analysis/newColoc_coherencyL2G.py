@@ -597,7 +597,7 @@ for value in values:
 
 def comparisons_df(dataset) -> list:
     """Return list of all comparisons to be used in the analysis"""
-    toAnalysis = dataset.drop("clinicalStatus", "prediction", "PhaseT").columns[22:]
+    toAnalysis = dataset.drop("clinicalStatus", "prediction", "PhaseT").columns[22:26] ### Just for the four genetic data
     dataType = ["byDatatype"] * len(toAnalysis)
     l_studies = []
     l_studies.extend([list(a) for a in zip(toAnalysis, dataType)])
@@ -615,9 +615,9 @@ def comparisons_df(dataset) -> list:
     predictions = spark.createDataFrame(
         data=[
             ("Phase4", "clinical"),
-            # ("Phase>=3", "clinical"),
-            # ("Phase>=2", "clinical"),
-            # ("Phase>=1", "clinical"),
+            ("Phase>=3", "clinical"),
+            ("Phase>=2", "clinical"),
+            ("Phase>=1", "clinical"),
             ("PhaseT", "clinical"),
         ]
     )
@@ -896,7 +896,7 @@ df = (
 
 print("writting dataframe")
 df.toPandas().to_csv(
-    f"gs://ot-team/jroldan/analysis/{today_date}_newColoc_L2Gbenchmark.csv"
+    f"gs://ot-team/jroldan/analysis/{today_date}_newColoc_L2Gbenchmark_4geneticDataAllPhases.csv"
 )
 
 print("dataframe written \n Analysis finished")

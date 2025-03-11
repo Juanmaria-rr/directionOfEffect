@@ -25,6 +25,9 @@ from pyspark.sql.types import (
 import pandas as pd
 
 spark = SparkSession.builder.getOrCreate()
+spark.conf.set(
+    "spark.sql.shuffle.partitions", "400"
+)  # Default is 200, increase if needed
 
 path = "gs://open-targets-pre-data-releases/24.12-uo_test-3/output/etl/parquet/"
 
@@ -45,6 +48,7 @@ variantIndex = spark.read.parquet(f"{path}variantIndex")
 
 biosample = spark.read.parquet(f"{path}biosample")
 
+print("loaded files")
 
 #### Fixing scXQTL as XQTLs:
 ## code provided by @ireneisdoomed
@@ -71,6 +75,8 @@ study_table = spark.createDataFrame(
     pd.read_csv(raw_studies_metadata_path, sep="\t"),
     schema=raw_studies_metadata_schema,
 )
+
+print("loaded study_table")
 
 # index = spark.read.parquet("gs://open-targets-pre-data-releases/24.12-uo_test-3/output/genetics/parquet/study_index")
 
@@ -107,6 +113,8 @@ study_index_w_correct_type = (
     # .persist()
 )
 
+print("loaded study_index_w_correct_type")
+
 fixed = (
     study_index_w_correct_type.withColumn(
         "toFix",
@@ -134,6 +142,9 @@ fixedIndex = all_studies.withColumn(
     ),
 ).drop("newStudyType")
 #### fixed
+
+print("loaded fixed and fixedIndex")
+
 
 newColoc = (
     new.join(
@@ -170,6 +181,9 @@ newColoc = (
     )
     # .persist()
 )
+
+print("loaded newColoc")
+
 # remove columns without content (only null values on them)
 df = evidences.filter((F.col("datasourceId") == "gwas_credible_sets"))
 
@@ -194,6 +208,8 @@ gwasComplete = filtered_df.join(
     on="studyLocusId",
     how="left",
 )  # .persist()
+
+print("loaded gwasComplete")
 
 resolvedColoc = (
     (
@@ -261,6 +277,7 @@ resolvedColoc = (
     )
     # .persist()
 )
+print("loaded resolvedColloc")
 
 path = "gs://open-targets-pre-data-releases/24.12-uo_test-3/output/etl/parquet/"
 
@@ -282,6 +299,8 @@ assessment, evidences, actionType, oncolabel = temporary_directionOfEffect(
     path, datasource_filter
 )
 
+print("run temporary direction of effect")
+
 drugApproved = (
     spark.read.parquet("gs://ot-team/irene/l2g/validation/chembl_w_flags")
     .drop("clinicalTrialId", "isComplex")
@@ -291,6 +310,8 @@ drugApproved = (
     )
     .distinct()
 )
+
+print("built drugApproved dataset")
 
 analysis_chembl_indication = (
     discrepancifier(
@@ -360,6 +381,8 @@ chemblAssoc = (
     .withColumnRenamed("LoF_protect", "drugLoF_protect")
 )
 
+print("built chemblAssoc dataset")
+
 benchmark = (
     (
         resolvedColoc.filter(F.col("betaGwas") < 0)
@@ -384,6 +407,8 @@ benchmark = (
         F.col("name") != "COVID-19"
     )  #### remove COVID-19 associations
 ).join(biosample.select("biosampleId", "biosampleName"), on="biosampleId", how="left")
+
+print("built benchmark dataset")
 
 #### Analysis
 
@@ -465,7 +490,7 @@ def aggregations_original(
         .filter(F.col("comparison").isNotNull())
         .distinct()
     )
-    """
+
     out.write.mode("overwrite").parquet(
         "gs://ot-team/jroldan/"
         + str(
@@ -483,7 +508,6 @@ def aggregations_original(
             + ".parquet"
         )
     )
-    """
 
     listado.append(
         "gs://ot-team/jroldan/"
@@ -517,6 +541,7 @@ def aggregations_original(
         + ".parquet"
     )
     print(path)
+    
     ### making analysis
     array1 = np.delete(
         out.join(full_data, on=["prediction", "comparison"], how="outer")
@@ -566,9 +591,9 @@ def aggregations_original(
 #### 3 Loop over different datasets (as they will have different rows and columns)
 
 
-def comparisons_df_iterative(df):
+def comparisons_df_iterative(elements):
     # toAnalysis = [(key, value) for key, value in disdic.items() if value == projectId]
-    toAnalysis = [(col, "predictor") for col in df.columns[18:]]
+    toAnalysis = [(col, "predictor") for col in elements]
     schema = StructType(
         [
             StructField("comparison", StringType(), True),
@@ -582,18 +607,13 @@ def comparisons_df_iterative(df):
     predictions = spark.createDataFrame(
         data=[
             ("Phase4", "clinical"),
-            # ("Phase>=3", "clinical"),
-            # ("Phase>=2", "clinical"),
-            # ("Phase>=1", "clinical"),
-            # ("nPhase4", "clinical"),
-            # ("nPhase>=3", "clinical"),
-            # ("nPhase>=2", "clinical"),
-            # ("nPhase>=1", "clinical"),
-            # ("approved", "clinical"),
             ("PhaseT", "clinical"),
         ]
     )
     return comparisons.join(predictions, how="full").collect()
+
+
+print("load comparisons_df_iterative function")
 
 
 full_data = spark.createDataFrame(
@@ -611,33 +631,73 @@ full_data = spark.createDataFrame(
     ),
 )
 print("created full_data and lists")
-
+""" 
 rightTissue = spark.read.csv(
     "gs://ot-team/jroldan/analysis/jroldan_analysis_curationBioSampleNameDiseaseCredibleSet_curated.csv/",
     header=True,
 ).drop("_c0", "rightTissue2", "_c6", "therapeuticAreas")
+"""
+rightTissue = spark.read.csv(
+    "gs://ot-team/jroldan/analysis/jroldan_analysis_secondCuration_latest.csv",
+    header=True,
+).drop("_c0")
 
-result = []
-result_st = []
-result_ci = []
-array2 = []
-listado = []
-result_all = []
-today_date = str(date.today())
+print("loaded rightTissue dataset")
+""" previous negative reasons used
+### target-diseases terminated&withdrawal in clin trials
+terminated = spark.read.csv(
+    "gs://ot-team/jroldan/analysis/targetDiseaseStoppedNegative.csv",
+    sep=",",
+    header=True,
+).drop("_c0", "Withdrawn")
+
+print("loaded terminated dataset")
+
+terminated_array = (
+    terminated.groupBy("targetId", "diseaseId")
+    .agg(F.collect_set("clinicalStatus").alias("clinicalStatus"))
+    .withColumn("prediction", F.when(F.col("clinicalStatus").isNotNull(), F.lit("yes")))
+)
+"""
+
+negativeTD = (
+    evidences.filter(F.col("datasourceId") == "chembl")
+    .select("targetId", "diseaseId", "studyStopReason", "studyStopReasonCategories")
+    .filter(F.array_contains(F.col("studyStopReasonCategories"), "Negative"))
+    .groupBy("targetId", "diseaseId")
+    .count()
+    .withColumn("stopReason", F.lit("Negative"))
+    .drop("count")
+)
+
+print("built negativeTD dataset")
+
+bench2 = benchmark.join(
+    rightTissue, on=["name", "bioSampleName"], how="left"
+).withColumn(
+    "rightTissue",
+    F.when(F.col("rightTissue1") == "yes", F.lit("yes")).otherwise(F.lit("no")),
+)
+
+print("built bench2 dataset")
+
+###### cut from here
+print("looping for variables_study")
+# List of columns to analyze
 variables_study = ["projectId", "biosampleName", "rightStudyType", "colocDoE"]
 
-print("looping for variables_study")
+# Dictionary to store results
+pivoted_dfs = {}
 
-for variable in variables_study:
-    print("analysing", variable)
-
-    #### prepare aggregation depending on the variable problem
-    window_spec = Window.partitionBy("targetId", "diseaseId", variable).orderBy(
+# Loop over the columns
+for col in variables_study:
+    window_spec = Window.partitionBy("targetId", "diseaseId", col).orderBy(
         F.col("pValueExponent").asc()
     )
-    bench2 = (
-        benchmark.join(rightTissue, on=["name", "bioSampleName"], how="left")
-        .withColumn(
+    print(f"Processing: {col}")
+
+    pivoted_df = (
+        bench2.withColumn(
             "rightTissue",
             F.when(F.col("rightTissue1") == "yes", F.lit("yes")).otherwise(F.lit("no")),
         )
@@ -674,8 +734,15 @@ for variable in variables_study:
             "isRightTissueSignalAgreed",
             "isSignalFromRightTissue",
         )
-        .pivot(variable)
-        .agg(F.collect_set("agree_lowestPVal"))
+        .pivot(col)  # Pivot the column dynamically
+        .agg(F.collect_set("agree_lowestPval"))
+        .join(negativeTD, on=["targetId", "diseaseId"], how="left")
+        .withColumn(
+            "PhaseT",
+            F.when(F.col("stopReason") == "Negative", F.lit("yes")).otherwise(
+                F.lit("no")
+            ),
+        )
         .withColumn(
             "Phase4",
             F.when(F.col("maxClinPhase") == 4, F.lit("yes")).otherwise(F.lit("no")),
@@ -720,7 +787,7 @@ for variable in variables_study:
                     .otherwise(F.lit("no"))
                     .alias(f"{x}_only")
                     for x, value in [
-                        (key, val) for key, val in disdic.items() if val == variable
+                        (key, val) for key, val in disdic.items() if val == col
                     ]
                 ]
             )
@@ -734,7 +801,7 @@ for variable in variables_study:
                     .otherwise(F.lit("no"))
                     .alias(f"{x}_tissue")
                     for x, value in [
-                        (key, val) for key, val in disdic.items() if val == variable
+                        (key, val) for key, val in disdic.items() if val == col
                     ]
                 ]
             )  ##### isSignalFromRightTissue
@@ -744,7 +811,7 @@ for variable in variables_study:
                     .otherwise(F.lit("no"))
                     .alias(f"{x}_isSignalFromRightTissue")
                     for x, value in [
-                        (key, val) for key, val in disdic.items() if val == variable
+                        (key, val) for key, val in disdic.items() if val == col
                     ]
                 ]
             )  ##### is right tissue signal agree with drug?
@@ -757,20 +824,36 @@ for variable in variables_study:
                     .otherwise(F.lit("no"))
                     .alias(f"{x}_isRightTissueSignalAgreed")
                     for x, value in [
-                        (key, val) for key, val in disdic.items() if val == variable
+                        (key, val) for key, val in disdic.items() if val == col
                     ]
                 ]
             )
         )
-    ).persist()
-    #### build list of comparison and prediction columns
-    rows = comparisons_df_iterative(bench2)
-    #### doing aggregations per
+    )  # Collect unique values
+
+    # Store the DataFrame in the dictionary
+    pivoted_dfs[col] = pivoted_df
+
+
+result = []
+result_st = []
+result_ci = []
+array2 = []
+listado = []
+result_all = []
+today_date = str(date.today())
+variables_study = ["projectId", "biosampleName", "rightStudyType", "colocDoE"]
+
+for key, df in pivoted_dfs.items():
+    unique_values = benchmark.select(key).distinct().rdd.flatMap(lambda x: x).collect()
+    filter = len(pivoted_dfs[key].drop(*unique_values).columns[21:])
+    rows = comparisons_df_iterative(pivoted_dfs[key].columns[-filter:])
     for row in rows:
-        print("row:", row)
-        results = aggregations_original(bench2, "propagated", listado, *row, today_date)
+        print(row)
+        results = aggregations_original(
+            pivoted_dfs[key], "propagated", listado, *row, today_date
+        )
         result_all.append(results)
-        bench2.unpersist()
 
     schema = StructType(
         [
@@ -796,7 +879,7 @@ patterns = [
     "_only",
     "_tissue",
     "_isSignalFromRightTissue",
-    "__isRightTissueSignalAgreed",
+    "_isRightTissueSignalAgreed",
 ]
 # Create a regex pattern to match any of the substrings
 regex_pattern = "(" + "|".join(map(re.escape, patterns)) + ")"

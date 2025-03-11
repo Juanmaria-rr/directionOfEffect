@@ -65,8 +65,8 @@ gwasCredibleAssoc = (
             F.col("homogenized")
         ),
     ).withColumn("variantEffect", 
-                F.when(F.col("homogenized").isin(["LoF_protect","LoF_risk"]), F.lit("lof")
-                ).when(F.col("homogenized").isin(["GoF_protect","GoF_risk"]), F.lit("gof")
+                F.when(F.col("homogenized").isin(["LoF_protect","LoF_risk"]), F.lit("LoF")
+                ).when(F.col("homogenized").isin(["GoF_protect","GoF_risk"]), F.lit("GoF")
                 ).otherwise(F.lit("noEvaluable"))
     ).withColumn("directionOnTrait", 
                 F.when(F.col("homogenized").isin(["LoF_protect","GoF_protect"]), F.lit("protect")
