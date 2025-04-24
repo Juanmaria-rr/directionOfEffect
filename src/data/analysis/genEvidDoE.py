@@ -377,10 +377,17 @@ analysisDatasources = []
 
 print("defining full_analysis_propagation")
 
+doe_columns=["LoF_protect", "GoF_risk", "LoF_risk", "GoF_protect"]
+diagonal_lof=['LoF_protect','GoF_risk']
+diagonal_gof=['LoF_risk','GoF_protect']
 
 def full_analysis_propagation(
-    assessment_all, analysisDatasources, analysis_chembl, negativeTD, diseaseTA
+    doe_columns,assessment_all, analysisDatasources, analysis_chembl, negativeTD, diseaseTA,diagonal_lof,diagonal_gof
 ):
+    conditions = [
+    F.when(F.col(c) == F.col("maxDoE"), F.lit(c)).otherwise(F.lit(None)) for c in doe_columns
+    ]
+    
     return (
         analysis_propagated(assessment_all, analysisDatasources)
         .join(
@@ -453,8 +460,13 @@ def full_analysis_propagation(
                 )
                 .otherwise(F.lit("dispar")),
             ),
-        )
-        .withColumn(
+        ).withColumn(
+            "arrayN", F.array(*[F.col(c) for c in doe_columns])
+        ).withColumn(
+            "maxDoE", F.array_max(F.col("arrayN"))
+        ).withColumn("maxDoE_names", F.array(*conditions)
+        ).withColumn("maxDoE_names", F.expr("filter(maxDoE_names, x -> x is not null)")
+        ).withColumn(
             "Phase4",
             F.when(F.col("maxClinPhase") == 4, F.lit("yes")).otherwise(F.lit("no")),
         )
@@ -502,6 +514,24 @@ def full_analysis_propagation(
                 .otherwise(F.lit("no")),
             ).otherwise(F.lit("no")),
         )
+        .withColumn(
+            "maxDoEArrayN",
+            F.expr("aggregate(arrayN, 0, (acc, x) -> acc + IF(x = maxDoE, 1, 0))")
+        ).withColumn(
+            "NoneCellYes",
+            F.when(F.col("LoF_protect_ch").isNotNull() & (F.array_contains(F.col("maxDoE_names"), F.lit("LoF_protect")))==True, F.lit('yes'))
+            .when(F.col("GoF_protect_ch").isNotNull() & (F.array_contains(F.col("maxDoE_names"), F.lit("GoF_protect")))==True, F.lit('yes')
+                ).otherwise(F.lit('no'))  # If the value is null, return null # Otherwise, check if name is in array
+        ).withColumn(
+            "NdiagonalYes",
+            F.when(F.col("LoF_protect_ch").isNotNull() & 
+                (F.size(F.array_intersect(F.col("maxDoE_names"), F.array([F.lit(x) for x in diagonal_lof]))) > 0),
+                F.lit("yes")
+            ).when(F.col("GoF_protect_ch").isNotNull() & 
+                (F.size(F.array_intersect(F.col("maxDoE_names"), F.array([F.lit(x) for x in diagonal_gof]))) > 0),
+                F.lit("yes")
+            ).otherwise(F.lit('no'))
+        )
         # .persist()
     )
 
@@ -513,7 +543,7 @@ print("defining full analysis no propagation")
 
 
 def full_analysis_noPropagation(
-    assessment_all, analysisDatasources, analysis_chembl, negativeTD, diseaseTA
+    doe_columns,assessment_all, analysisDatasources, analysis_chembl, negativeTD, diseaseTA,diagonal_lof,diagonal_gof
 ):
     return (
         analysis_nonPropagated(assessment_all, analysisDatasources)
@@ -634,6 +664,23 @@ def full_analysis_noPropagation(
                 .when(F.col("oneCellAgreeWithDrugs") == "dispar", F.lit("no"))
                 .otherwise(F.lit("no")),
             ).otherwise(F.lit("no")),
+        ).withColumn(
+            "maxDoEArrayN",
+            F.expr("aggregate(arrayN, 0, (acc, x) -> acc + IF(x = maxDoE, 1, 0))")
+        ).withColumn(
+            "NoneCellYes",
+            F.when(F.col("LoF_protect_ch").isNotNull() & (F.array_contains(F.col("maxDoE_names"), F.lit("LoF_protect")))==True, F.lit('yes'))
+            .when(F.col("GoF_protect_ch").isNotNull() & (F.array_contains(F.col("maxDoE_names"), F.lit("GoF_protect")))==True, F.lit('yes')
+                ).otherwise(F.lit('no'))  # If the value is null, return null # Otherwise, check if name is in array
+        ).withColumn(
+            "NdiagonalYes",
+            F.when(F.col("LoF_protect_ch").isNotNull() & 
+                (F.size(F.array_intersect(F.col("maxDoE_names"), F.array([F.lit(x) for x in diagonal_lof]))) > 0),
+                F.lit("yes")
+            ).when(F.col("GoF_protect_ch").isNotNull() & 
+                (F.size(F.array_intersect(F.col("maxDoE_names"), F.array([F.lit(x) for x in diagonal_gof]))) > 0),
+                F.lit("yes")
+            ).otherwise(F.lit('no'))
         )
         # .persist()
     )
@@ -724,10 +771,10 @@ somatic_list = ["intogen", "cancer_gene_census", "eva_somatic"]
 # assessment = prueba_assessment.filter(F.col("datasourceId").isin(datasources_analysis))
 def dataset_builder(assessment_all, value, analysis_chembl, negativeTD, diseaseTA):
     nonPropagated = full_analysis_noPropagation(
-        assessment_all, value, analysis_chembl, negativeTD, diseaseTA
+        doe_columns,assessment_all, value, analysis_chembl, negativeTD, diseaseTA,diagonal_lof,diagonal_gof
     )
     propagated = full_analysis_propagation(
-        assessment_all, value, analysis_chembl, negativeTD, diseaseTA
+        doe_columns,assessment_all, value, analysis_chembl, negativeTD, diseaseTA,diagonal_lof,diagonal_gof
     )
     return (
         # Non propagation
@@ -841,6 +888,8 @@ def comparisons_df() -> list:
             ("hasGeneticEvidence", "byDatatype"),
             ("diagonalYes", "byDatatype"),
             ("oneCellYes", "byDatatype"),
+            ("NdiagonalYes", "byDatatype"),
+            ("NoneCellYes", "byDatatype"),
         ],
         schema=StructType(
             [
@@ -860,6 +909,7 @@ def comparisons_df() -> list:
         ]
     )
     return comparisons.join(predictions, how="full").collect()
+
 
 
 result = []
