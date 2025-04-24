@@ -545,6 +545,9 @@ print("defining full analysis no propagation")
 def full_analysis_noPropagation(
     doe_columns,assessment_all, analysisDatasources, analysis_chembl, negativeTD, diseaseTA,diagonal_lof,diagonal_gof
 ):
+    conditions = [
+    F.when(F.col(c) == F.col("maxDoE"), F.lit(c)).otherwise(F.lit(None)) for c in doe_columns
+    ]
     return (
         analysis_nonPropagated(assessment_all, analysisDatasources)
         .join(
