@@ -616,6 +616,12 @@ def full_analysis_noPropagation(
                 )
                 .otherwise(F.lit("dispar")),
             ),
+        ).withColumn(
+            "arrayN", F.array(*[F.col(c) for c in doe_columns])
+        ).withColumn(
+            "maxDoE", F.array_max(F.col("arrayN"))
+        ).withColumn("maxDoE_names", F.array(*conditions)
+        ).withColumn("maxDoE_names", F.expr("filter(maxDoE_names, x -> x is not null)")
         )
         .withColumn(
             "Phase4",
