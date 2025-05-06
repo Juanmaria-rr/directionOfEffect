@@ -186,7 +186,7 @@ resolvedColoc = (
 print("loaded resolvedColloc")
 
 datasource_filter = [
-    "gwas_credible_set",
+    #"gwas_credible_set", remove so avoid potential duplicates as it will be incorporated later (DoE is done separately)
     "gene_burden",
     "eva",
     "eva_somatic",
