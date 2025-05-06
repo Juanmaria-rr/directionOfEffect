@@ -1085,6 +1085,7 @@ results = []
 
 
 print("starting with non-propagated aggregations at", c)
+#for key, df in islice(dfs_dict.items(), 1): ## for debugging
 for key, df in dfs_dict.items():
     df = df.persist()
     for row in aggSetups_original:
@@ -1096,6 +1097,7 @@ print("non propagated files wroten succesfully at", c)
 
 
 print("starting with propagated aggregations at", c)
+#for key, df in islice(dfs_dict_propag.items(), 1): ## for debugging
 for key, df in dfs_dict_propag.items():
     df = df.persist()
     for row in aggSetups_original:
