@@ -1013,11 +1013,11 @@ for key, df_analysis in datasetDict.items():
 
 for key, df_analysis in datasetDict_propag.items():
     df_analysis.persist()
-    print("original", key)
+    print("propagated", key)
     for row in aggSetups_original:
         aggregations_original(df_analysis, key, listado, *row, today_date)
     df_analysis.unpersist()
-    print("unpersist original", key)
+    print("unpersist propagated", key)
 
 
 print("finished analysis")
