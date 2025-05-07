@@ -1107,6 +1107,9 @@ for key, df in dfs_dict_propag.items():
 
 print("propagated files wroten succesfully at", c)
 
+
+'''
+
 print("creating pandas dataframe with resulting rows")
 df_results = pd.DataFrame(
     results,
@@ -1155,11 +1158,10 @@ print("writting the dataframe")
 
 # Convert list of lists to DataFrame
 # Regular expressions
-'''
+    
 value_pattern = r"df_([^_]+)_"  # Extracts {value}
 middle_pattern = r"df_[^_]+_([^_]+)_"  # Extracts middle part (All, Other, etc.)
 suffix_pattern = r"(original|propag)$"  # Extracts suffix (original or propag)
-'''
 
 df.withColumn(
     "datasource",
@@ -1175,3 +1177,5 @@ df.withColumn(
 )
 
 print("dataframe written \n Analysis finished")
+
+'''
