@@ -1,15 +1,33 @@
-#### discrepancies matrices:
+import time
+#from array import ArrayType
+from functions import (
+    discrepancifier,
+    temporary_directionOfEffect,
+)
+# from stoppedTrials import terminated_td
 from DoEAssessment import directionOfEffect
-from functions import discrepancifier
-from pyspark.sql import SparkSession
+# from membraneTargets import target_membrane
+from pyspark.sql import SparkSession, Window
 import pyspark.sql.functions as F
+#from itertools import islice
+from datetime import datetime
+from datetime import date
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    DoubleType,
+    StringType,
+    IntegerType,
+    ArrayType
+)
+import pandas as pd
 
 spark = SparkSession.builder.getOrCreate()
 
-platform_v = "24.06"
+platform_v = "25.03"
 
 doe_sources = [
-    "ot_genetics_portal",
+    "gwas_credible_set",
     "gene_burden",
     "eva",
     "eva_somatic",
@@ -21,9 +39,283 @@ doe_sources = [
     "chembl",
 ]
 
-evidences_all = spark.read.parquet(
-    f"gs://open-targets-data-releases/{platform_v}/output/etl/parquet/evidence"
+### ingest evidences and create gwas_credible_set evidences. 
+
+path_n='gs://open-targets-data-releases/25.03/output/'
+
+target = spark.read.parquet(f"{path_n}target/")
+
+diseases = spark.read.parquet(f"{path_n}disease/")
+
+evidences = spark.read.parquet(f"{path_n}evidence")
+
+credible = spark.read.parquet(f"{path_n}credible_set")
+
+new = spark.read.parquet(f"{path_n}colocalisation_coloc") 
+
+index=spark.read.parquet(f"{path_n}study/")
+
+variantIndex = spark.read.parquet(f"{path_n}variant")
+
+biosample = spark.read.parquet(f"{path_n}biosample")
+
+print("loaded files")
+
+newColoc = (
+    new.join(
+        credible.selectExpr(  #### studyLocusId from credible set to uncover the codified variants on left side
+            "studyLocusId as leftStudyLocusId",
+            "StudyId as leftStudyId",
+            "variantId as leftVariantId",
+            "studyType as credibleLeftStudyType",
+        ),
+        on="leftStudyLocusId",
+        how="left",
+    )
+    .join(
+        credible.selectExpr(  #### studyLocusId from credible set to uncover the codified variants on right side
+            "studyLocusId as rightStudyLocusId",
+            "studyId as rightStudyId",
+            "variantId as rightVariantId",
+            "studyType as credibleRightStudyType",
+            'isTransQtl'
+        ),
+        on="rightStudyLocusId",
+        how="left",
+    )
+    .join(
+        index.selectExpr(  ### bring modulated target on right side (QTL study)
+            "studyId as rightStudyId",
+            "geneId",
+            "projectId",
+            "studyType as indexStudyType",
+            "condition",
+            "biosampleId",
+        ),
+        on="rightStudyId",
+        how="left",
 )
+    # .persist()
+)
+
+print("loaded newColoc")
+
+# remove columns without content (only null values on them)
+df = evidences.filter((F.col("datasourceId") == "gwas_credible_sets"))
+
+# Use an aggregation to determine non-null columns
+non_null_counts = df.select(
+    *[F.sum(F.col(col).isNotNull().cast("int")).alias(col) for col in df.columns]
+)
+
+# Collect the counts for each column
+non_null_columns = [
+    row[0] for row in non_null_counts.collect()[0].asDict().items() if row[1] > 0
+]
+
+# Select only the non-null columns
+filtered_df = df.select(*non_null_columns)  # .persist()
+
+## bring studyId, variantId, beta from Gwas and pValue
+gwasComplete = filtered_df.join(
+    credible.selectExpr(
+        "studyLocusId", "studyId", "variantId", "beta as betaGwas", "pValueExponent"
+    ),
+    on="studyLocusId",
+    how="left",
+)  # .persist()
+
+print("loaded gwasComplete")
+
+resolvedColoc = (
+    (
+        newColoc.withColumnRenamed("geneId", "targetId")
+        .join(
+            gwasComplete.withColumnRenamed("studyLocusId", "leftStudyLocusId"),
+            on=["leftStudyLocusId", "targetId"],
+            how="inner",
+        )
+        .join(  ### propagated using parent terms
+            diseases.selectExpr(
+                "id as diseaseId", "name", "parents", "therapeuticAreas"
+            ),
+            on="diseaseId",
+            how="left",
+        )
+        .withColumn(
+            "diseaseId",
+            F.explode_outer(F.concat(F.array(F.col("diseaseId")), F.col("parents"))),
+        )
+        .drop("parents", "oldDiseaseId")
+    ).withColumn(
+        "colocDoE",
+        F.when(
+            F.col("rightStudyType").isin(
+                ["eqtl", "pqtl", "tuqtl", "sceqtl", "sctuqtl"]
+            ),
+            F.when(
+                (F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") > 0),
+                F.lit("GoF_risk"),
+            )
+            .when(
+                (F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") < 0),
+                F.lit("LoF_risk"),
+            )
+            .when(
+                (F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") > 0),
+                F.lit("LoF_protect"),
+            )
+            .when(
+                (F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") < 0),
+                F.lit("GoF_protect"),
+            ),
+        ).when(
+            F.col("rightStudyType").isin(
+                ["sqtl", "scsqtl"]
+            ),  ### opposite directionality than sqtl
+            F.when(
+                (F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") > 0),
+                F.lit("LoF_risk"),
+            )
+            .when(
+                (F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") < 0),
+                F.lit("GoF_risk"),
+            )
+            .when(
+                (F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") > 0),
+                F.lit("GoF_protect"),
+            )
+            .when(
+                (F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") < 0),
+                F.lit("LoF_protect"),
+            ),
+        ),
+    )
+    # .persist()
+)
+print("loaded resolvedColloc")
+
+datasource_filter = [
+    #"gwas_credible_set", remove so avoid potential duplicates as it will be incorporated later (DoE is done separately)
+    "gene_burden",
+    "eva",
+    "eva_somatic",
+    "gene2phenotype",
+    "orphanet",
+    "cancer_gene_census",
+    "intogen",
+    "impc",
+    "chembl",
+]
+
+assessment, evidences, actionType, oncolabel = temporary_directionOfEffect(
+    path_n, datasource_filter
+)
+
+print("run temporary direction of effect")
+
+window_spec = Window.partitionBy("targetId", "diseaseId",'leftStudyId').orderBy( ### include gwas study
+    F.col("pValueExponent").asc()
+)
+gwasCredibleAssoc = (
+    resolvedColoc.withColumn(
+        "homogenized", F.first("colocDoE", ignorenulls=True).over(window_spec)
+    )  ## added 30.01.2025
+    .select("targetId", "diseaseId",'leftStudyId', "homogenized")
+    .withColumn(
+        "homogenized",
+        F.when(F.col("homogenized").isNull(), F.lit("noEvaluable")).otherwise(
+            F.col("homogenized")
+        ),
+    )
+)
+
+print("Moving to step 2")
+
+columns_chembl = ["LoF_protect", "GoF_protect"]
+columns_dataset = ["LoF_protect", "GoF_protect", "LoF_risk", "GoF_risk", "evidenceDif"]
+columns = ["GoF_risk", "LoF_protect", "LoF_risk", "GoF_protect"]
+terms = ["noEvaluable", "bivalent_risk", "null", "dispar"]
+
+taDf = spark.createDataFrame(
+    data=[
+        ("MONDO_0045024", "cell proliferation disorder", "Oncology"),
+        ("EFO_0005741", "infectious disease", "Other"),
+        ("OTAR_0000014", "pregnancy or perinatal disease", "Other"),
+        ("EFO_0005932", "animal disease", "Other"),
+        ("MONDO_0024458", "disease of visual system", "Other"),
+        ("EFO_0000319", "cardiovascular disease", "Other"),
+        ("EFO_0009605", "pancreas disease", "Other"),
+        ("EFO_0010282", "gastrointestinal disease", "Other"),
+        ("OTAR_0000017", "reproductive system or breast disease", "Other"),
+        ("EFO_0010285", "integumentary system disease", "Other"),
+        ("EFO_0001379", "endocrine system disease", "Other"),
+        ("OTAR_0000010", "respiratory or thoracic disease", "Other"),
+        ("EFO_0009690", "urinary system disease", "Other"),
+        ("OTAR_0000006", "musculoskeletal or connective tissue disease", "Other"),
+        ("MONDO_0021205", "disease of ear", "Other"),
+        ("EFO_0000540", "immune system disease", "Other"),
+        ("EFO_0005803", "hematologic disease", "Other"),
+        ("EFO_0000618", "nervous system disease", "Other"),
+        ("MONDO_0002025", "psychiatric disorder", "Other"),
+        ("MONDO_0024297", "nutritional or metabolic disease", "Other"),
+        ("OTAR_0000018", "genetic, familial or congenital disease", "Other"),
+        ("OTAR_0000009", "injury, poisoning or other complication", "Other"),
+        ("EFO_0000651", "phenotype", "Other"),
+        ("EFO_0001444", "measurement", "Other"),
+        ("GO_0008150", "biological process", "Other"),
+    ],
+    schema=StructType(
+        [
+            StructField("taId", StringType(), True),
+            StructField("taLabel", StringType(), True),
+            StructField("taLabelSimple", StringType(), True),
+        ]
+    ),
+).withColumn("taRank", F.monotonically_increasing_id())
+
+### give us a classification of Oncology VS non oncology
+wByDisease = Window.partitionBy("diseaseId")  #### checked 31.05.2023
+diseaseTA = (
+    diseases.withColumn("taId", F.explode("therapeuticAreas"))
+    .select(F.col("id").alias("diseaseId"), "taId", "parents")
+    .join(taDf, on="taId", how="left")
+    .withColumn("minRank", F.min("taRank").over(wByDisease))
+    .filter(F.col("taRank") == F.col("minRank"))
+    .drop("taRank", "minRank")
+)
+
+#### give us propagation of diseases and list of therapeutic areas associated
+diseases2 = diseases.select("id", "parents").withColumn(
+    "diseaseIdPropagated",
+    F.explode_outer(F.concat(F.array(F.col("id")), F.col("parents"))),
+)
+
+chembl_trials = (
+    assessment.filter((F.col("datasourceId").isin(["chembl"])))
+    .groupBy("targetId", "diseaseId")
+    .agg(F.max(F.col("clinicalPhase")).alias("maxClinPhase"))
+)
+
+negativeTD = (
+    evidences.filter(F.col("datasourceId") == "chembl")
+    .select("targetId", "diseaseId", "studyStopReason", "studyStopReasonCategories")
+    .filter(F.array_contains(F.col("studyStopReasonCategories"), "Negative"))
+    .groupBy("targetId", "diseaseId")
+    .count()
+    .withColumn("stopReason", F.lit("Negative"))
+    .drop("count")
+)
+
+assessment_all = assessment.unionByName(
+    gwasCredibleAssoc.withColumn("datasourceId", F.lit("gwas_credible_set")),
+    allowMissingColumns=True,
+)
+
+######## 
+ #evidences_all = spark.read.parquet(
+ #    f"gs://open-targets-data-releases/{platform_v}/output/etl/parquet/evidence"
+ #)
 ###
 replacement_dict = {
     "gene_burden": "GeneBurden",
@@ -34,17 +326,17 @@ replacement_dict = {
     "eva": "EvaGermline",
     "gene2phenotype": "Gene2Phenotype",
     "eva_somatic": "EvaSomatic",
-    "ot_genetics_portal": "OtGenetics",
+    "gwas_credible_set": "OtGenetics",
     "impc": "IMPC",
 }
 
 ### take only the ones with datasources for DoE
-evidences = evidences_all.filter(F.col("datasourceId").isin(doe_sources)).replace(
+evidences_all = assessment_all.filter(F.col("datasourceId").isin(doe_sources)).replace(
     replacement_dict, subset=["datasourceId"]
 )
 
 
-def coincidence_matrix(evidences, platform_v, replacement_dict):
+def coincidence_matrix(evidences_all, replacement_dict):
     """Build a coincidence matrix of target disease associations between the datasources
     (these datasources are defined previously in the "evidences file passed to this function)
 
@@ -62,7 +354,8 @@ def coincidence_matrix(evidences, platform_v, replacement_dict):
 
     dataset1 = (  #### unique identifier and global coherency
         discrepancifier(
-            directionOfEffect(evidences, platform_v)
+            # directionOfEffect(evidences, platform_v)
+            evidences_all
             .withColumn("datasourceAll", F.lit("All"))
             .withColumn("niceName", F.col("datasourceId"))
             .replace(replacement_dict, subset=["niceName"])
@@ -79,7 +372,8 @@ def coincidence_matrix(evidences, platform_v, replacement_dict):
     ### coherency intra datasource
     dataset2 = (
         discrepancifier(
-            directionOfEffect(evidences, platform_v)
+            #directionOfEffect(evidences, platform_v)
+            evidences_all
             .withColumn("datasourceAll", F.lit("All"))
             .withColumn("niceName", F.col("datasourceId"))
             .replace(replacement_dict, subset=["niceName"])
