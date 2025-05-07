@@ -787,7 +787,7 @@ for value in values:
 
 def comparisons_df(dataset) -> list:
     """Return list of all comparisons to be used in the analysis"""
-    toAnalysis = dataset.drop("clinicalStatus", "stopReason", "PhaseT",'maxDoEArrayN').columns[25:31]
+    toAnalysis = dataset.drop("clinicalStatus", "stopReason", "PhaseT",'maxDoEArrayN').columns[25:]
     dataType = ["byDatatype"] * len(toAnalysis)
     l_studies = []
     l_studies.extend([list(a) for a in zip(toAnalysis, dataType)])
@@ -1003,23 +1003,19 @@ listado = []
 today_date = str(date.today())
 aggSetups_original = comparisons_df(datasetDict["max_L2GScore_original"])
 
-
-for row in aggSetups_original:
-    for key, df_analysis in datasetDict.items():
-        print("original", key, row)
+for key, df_analysis in datasetDict.items():
+    df_analysis.persist()
+    print("original", key)
+    for row in aggSetups_original:
         aggregations_original(df_analysis, key, listado, *row, today_date)
-        df_analysis.persist()
-        aggSetups_original = comparisons_df(df_analysis)
     df_analysis.unpersist()
     print("unpersist original", key)
 
-
-for row in aggSetups_original:
-    for key, df_analysis in datasetDict_propag.items():
-        print("original", key, row)
+for key, df_analysis in datasetDict_propag.items():
+    df_analysis.persist()
+    print("original", key)
+    for row in aggSetups_original:
         aggregations_original(df_analysis, key, listado, *row, today_date)
-        df_analysis.persist()
-        aggSetups_original = comparisons_df(df_analysis)
     df_analysis.unpersist()
     print("unpersist original", key)
 
