@@ -1001,11 +1001,12 @@ print("launched function to run analysis")
 
 listado = []
 today_date = str(date.today())
-aggSetups_original = comparisons_df(datasetDict["max_L2GScore_original"])
+
 
 for key, df_analysis in datasetDict.items():
     df_analysis.persist()
     print("original", key)
+    aggSetups_original = comparisons_df(df_analysis)
     for row in aggSetups_original:
         aggregations_original(df_analysis, key, listado, *row, today_date)
     df_analysis.unpersist()
@@ -1014,6 +1015,7 @@ for key, df_analysis in datasetDict.items():
 for key, df_analysis in datasetDict_propag.items():
     df_analysis.persist()
     print("propagated", key)
+    aggSetups_original = comparisons_df(df_analysis)
     for row in aggSetups_original:
         aggregations_original(df_analysis, key, listado, *row, today_date)
     df_analysis.unpersist()
