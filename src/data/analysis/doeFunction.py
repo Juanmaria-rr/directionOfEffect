@@ -10,13 +10,14 @@ index=spark.read.parquet(f"{path_n}study/")
 evidences = spark.read.parquet(f"{path_n}evidence")
 diseases = spark.read.parquet(f"{path_n}disease/")
 '''
-def doeFunction(path_n,new,credible,index,evidences,diseases):
+def doeFunction(new,credible,index,evidences,diseases,path):
     #### function to get genetic associations from gwas_Credible_set 
     ### and DoE across currently used datasources
     from functions import (
     temporary_directionOfEffect,
     )
     import pyspark.sql.functions as F
+    from pyspark.sql import Window
 
     newColoc = (
         new.join(
@@ -151,7 +152,9 @@ def doeFunction(path_n,new,credible,index,evidences,diseases):
         # .persist()
     )
     print("loaded resolvedColloc")
-
+    window_spec = Window.partitionBy("targetId", "diseaseId",'leftStudyId').orderBy( ### include gwas study
+        F.col("pValueExponent").asc()
+    )
     gwasCredibleAssoc = (
     resolvedColoc.withColumn(
         "homogenized", F.first("colocDoE", ignorenulls=True).over(window_spec)
@@ -179,11 +182,13 @@ def doeFunction(path_n,new,credible,index,evidences,diseases):
     ]
 
     assessment, evidences, actionType, oncolabel = temporary_directionOfEffect(
-    path_n, datasource_filter
+    path, datasource_filter
     )
     assessment_all = assessment.unionByName(
     gwasCredibleAssoc.withColumn("datasourceId", F.lit("gwas_credible_set")),
     allowMissingColumns=True,
     )
+
+
 
     return gwasCredibleAssoc,assessment
