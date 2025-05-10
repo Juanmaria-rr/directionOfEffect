@@ -1,5 +1,3 @@
-""" Build datasets with DoE evidence and assoc numbers"""
-
 #from DoEAssessment import directionOfEffect
 from functions import temporary_directionOfEffect,build_gwasResolvedColoc_noPropag
 from pyspark.sql import SparkSession, Window
@@ -23,13 +21,12 @@ replacement_dict = {
     "eva": "EvaGermline",
     "gene2phenotype": "Gene2Phenotype",
     "eva_somatic": "EvaSomatic",
-    "ot_genetics_portal": "OtGenetics",
+    "gwas_credible_sets": "OtGenetics",
     "impc": "IMPC",
-    "gwas_credible_set" :"credibleOtGenetics"   
 }
 
 doe_sources = [
-    #"ot_genetics_portal",
+    "gwas_credible_sets",
     "gene_burden",
     "eva",
     "eva_somatic",
@@ -50,7 +47,7 @@ diseases = spark.read.parquet(f"{path}disease/")
 ### take only the ones with datasources for DoE
 evidences = evidences.filter(F.col("datasourceId").isin(doe_sources))
 
-gwasCredibleAssoc,assessment=doeFunction(path,new,credible,index,evidences,diseases)
+gwasCredibleAssoc,assessment=doeFunction(new,credible,index,evidences,diseases,path)
 
 gwasCredibleAssoc.withColumn(
         "homogenized",
