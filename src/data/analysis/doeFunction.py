@@ -1,7 +1,8 @@
 '''
 spark = SparkSession.builder.getOrCreate()
+from pyspark.sql import SparkSession, Window
+import pyspark.sql.functions as F
 path_n='gs://open-targets-data-releases/25.03/output/'
-
 '''
 def doeFunction(path_n):
     #### function to get genetic associations from gwas_Credible_set 
@@ -9,6 +10,7 @@ def doeFunction(path_n):
     from functions import (
     temporary_directionOfEffect,
     )
+    
 
     diseases = spark.read.parquet(f"{path_n}disease/")
 
