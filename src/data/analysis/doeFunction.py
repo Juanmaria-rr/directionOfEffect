@@ -3,26 +3,19 @@ spark = SparkSession.builder.getOrCreate()
 from pyspark.sql import SparkSession, Window
 import pyspark.sql.functions as F
 path_n='gs://open-targets-data-releases/25.03/output/'
+
+new = spark.read.parquet(f"{path_n}colocalisation_coloc") 
+credible = spark.read.parquet(f"{path_n}credible_set")
+index=spark.read.parquet(f"{path_n}study/")
+evidences = spark.read.parquet(f"{path_n}evidence")
+diseases = spark.read.parquet(f"{path_n}disease/")
 '''
-def doeFunction(path_n):
+def doeFunction(path_n,new,credible,index,evidences,diseases):
     #### function to get genetic associations from gwas_Credible_set 
     ### and DoE across currently used datasources
     from functions import (
     temporary_directionOfEffect,
     )
-    
-
-    diseases = spark.read.parquet(f"{path_n}disease/")
-
-    evidences = spark.read.parquet(f"{path_n}evidence")
-
-    credible = spark.read.parquet(f"{path_n}credible_set")
-
-    new = spark.read.parquet(f"{path_n}colocalisation_coloc") 
-
-    index=spark.read.parquet(f"{path_n}study/")
-
-    print("loaded files")
 
     newColoc = (
         new.join(
