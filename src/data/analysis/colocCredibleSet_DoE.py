@@ -1,4 +1,4 @@
-#### 10.12.2024
+import time
 from array import ArrayType
 from functions import (
     relative_success,
@@ -6,9 +6,9 @@ from functions import (
     discrepancifier,
     temporary_directionOfEffect,
 )
-from stoppedTrials import terminated_td
+# from stoppedTrials import terminated_td
 from DoEAssessment import directionOfEffect
-from membraneTargets import target_membrane
+# from membraneTargets import target_membrane
 from pyspark.sql import SparkSession, Window
 import pyspark.sql.functions as F
 from datetime import datetime
@@ -29,122 +29,26 @@ spark.conf.set(
     "spark.sql.shuffle.partitions", "400"
 )  # Default is 200, increase if needed
 
-path = "gs://open-targets-pre-data-releases/24.12-uo_test-3/output/etl/parquet/"
 
-target = spark.read.parquet(f"{path}targets/")
+path_n='gs://open-targets-data-releases/25.03/output/'
 
-diseases = spark.read.parquet(f"{path}diseases/")
+target = spark.read.parquet(f"{path_n}target/")
 
-evidences = spark.read.parquet(f"{path}evidence")
+diseases = spark.read.parquet(f"{path_n}disease/")
 
-credible = spark.read.parquet(f"{path}credibleSet")
+evidences = spark.read.parquet(f"{path_n}evidence")
 
-### index with new fix" "gs://ot-team/irene/gentropy/study_index_2412_fixed"
-index = spark.read.parquet(f"gs://ot-team/irene/gentropy/study_index_2412_fixed")
+credible = spark.read.parquet(f"{path_n}credible_set")
 
-new = spark.read.parquet(f"{path}colocalisation/coloc")
+new = spark.read.parquet(f"{path_n}colocalisation_coloc") 
 
-variantIndex = spark.read.parquet(f"{path}variantIndex")
+index=spark.read.parquet(f"{path_n}study/")
 
-biosample = spark.read.parquet(f"{path}biosample")
+variantIndex = spark.read.parquet(f"{path_n}variant")
+
+biosample = spark.read.parquet(f"{path_n}biosample")
 
 print("loaded files")
-
-#### Fixing scXQTL as XQTLs:
-## code provided by @ireneisdoomed
-pd.DataFrame.iteritems = pd.DataFrame.items
-
-raw_studies_metadata_schema: StructType = StructType(
-    [
-        StructField("study_id", StringType(), True),
-        StructField("dataset_id", StringType(), True),
-        StructField("study_label", StringType(), True),
-        StructField("sample_group", StringType(), True),
-        StructField("tissue_id", StringType(), True),
-        StructField("tissue_label", StringType(), True),
-        StructField("condition_label", StringType(), True),
-        StructField("sample_size", IntegerType(), True),
-        StructField("quant_method", StringType(), True),
-        StructField("pmid", StringType(), True),
-        StructField("study_type", StringType(), True),
-    ]
-)
-raw_studies_metadata_path = "https://raw.githubusercontent.com/eQTL-Catalogue/eQTL-Catalogue-resources/fe3c4b4ed911b3a184271a6aadcd8c8769a66aba/data_tables/dataset_metadata.tsv"
-
-study_table = spark.createDataFrame(
-    pd.read_csv(raw_studies_metadata_path, sep="\t"),
-    schema=raw_studies_metadata_schema,
-)
-
-print("loaded study_table")
-
-# index = spark.read.parquet("gs://open-targets-pre-data-releases/24.12-uo_test-3/output/genetics/parquet/study_index")
-
-study_index_w_correct_type = (
-    study_table.select(
-        F.concat_ws(
-            "_",
-            F.col("study_label"),
-            F.col("quant_method"),
-            F.col("sample_group"),
-        ).alias("extracted_column"),
-        "study_type",
-    ).join(
-        index
-        # Get eQTL Catalogue studies
-        .filter(F.col("studyType") != "gwas").filter(
-            ~F.col("studyId").startswith("UKB_PPP")
-        )
-        # Remove measured trait
-        .withColumn(
-            "extracted_column",
-            F.regexp_replace(F.col("studyId"), r"(_ENS.*|_ILMN.*|_X.*|_[0-9]+:.*)", ""),
-        ).withColumn(
-            "extracted_column",
-            # After the previous cleanup, there are multiple traits from the same publication starting with the gene symbol that need to be removed (e.g. `Sun_2018_aptamer_plasma_ANXA2.4961.17.1..1`)
-            F.when(
-                F.col("extracted_column").startswith("Sun_2018_aptamer_plasma"),
-                F.lit("Sun_2018_aptamer_plasma"),
-            ).otherwise(F.col("extracted_column")),
-        ),
-        on="extracted_column",
-        how="right",
-    )
-    # .persist()
-)
-
-print("loaded study_index_w_correct_type")
-
-fixed = (
-    study_index_w_correct_type.withColumn(
-        "toFix",
-        F.when(
-            (F.col("study_type") != "single-cell")
-            & (F.col("studyType").startswith("sc")),
-            F.lit(True),
-        ).otherwise(F.lit(False)),
-    )
-    # Remove the substring "sc" from the studyType column
-    .withColumn(
-        "newStudyType",
-        F.when(
-            F.col("toFix"), F.regexp_replace(F.col("studyType"), r"sc", "")
-        ).otherwise(F.col("studyType")),
-    ).drop("toFix", "extracted_column", "study_type")
-)  # .persist()
-all_studies = index.join(
-    fixed.selectExpr("studyId", "newStudyType"), on="studyId", how="left"
-)  # .persist()
-fixedIndex = all_studies.withColumn(
-    "studyType",
-    F.when(F.col("newStudyType").isNotNull(), F.col("newStudyType")).otherwise(
-        F.col("studyType")
-    ),
-).drop("newStudyType")
-#### fixed
-
-print("loaded fixed and fixedIndex")
-
 
 newColoc = (
     new.join(
@@ -163,12 +67,13 @@ newColoc = (
             "studyId as rightStudyId",
             "variantId as rightVariantId",
             "studyType as credibleRightStudyType",
+            'isTransQtl'
         ),
         on="rightStudyLocusId",
         how="left",
     )
     .join(
-        fixedIndex.selectExpr(  ### bring modulated target on right side (QTL study)
+        index.selectExpr(  ### bring modulated target on right side (QTL study)
             "studyId as rightStudyId",
             "geneId",
             "projectId",
@@ -178,7 +83,7 @@ newColoc = (
         ),
         on="rightStudyId",
         how="left",
-    )
+)
     # .persist()
 )
 
@@ -296,44 +201,24 @@ datasource_filter = [
 ]
 
 assessment, evidences, actionType, oncolabel = temporary_directionOfEffect(
-    path, datasource_filter
+    path_n, datasource_filter
 )
 
 print("run temporary direction of effect")
 
-drugApproved = (
-    spark.read.parquet("gs://ot-team/irene/l2g/validation/chembl_w_flags")
-    .drop("clinicalTrialId", "isComplex")
-    .withColumn(
-        "isApproved",
-        F.when(F.col("isApproved") == "true", F.lit(1)).otherwise(F.lit(0)),
-    )
-    .distinct()
-)
 
 print("built drugApproved dataset")
 
 analysis_chembl_indication = (
     discrepancifier(
         assessment.filter((F.col("datasourceId") == "chembl"))
-        .join(
-            drugApproved.filter(F.col("isApproved") == 1),
-            on=["targetId", "diseaseId", "drugId"],
-            how="left",
-        )
         .withColumn(
             "maxClinPhase",
             F.max(F.col("clinicalPhase")).over(
                 Window.partitionBy("targetId", "diseaseId")
             ),
         )
-        .withColumn(
-            "approvedDrug",
-            F.max(F.col("isApproved")).over(
-                Window.partitionBy("targetId", "diseaseId")
-            ),
-        )
-        .groupBy("targetId", "diseaseId", "maxClinPhase", "approvedDrug")
+        .groupBy("targetId", "diseaseId", "maxClinPhase")
         .pivot("homogenized")
         .agg(F.count("targetId"))
     )
@@ -343,19 +228,6 @@ analysis_chembl_indication = (
     )
     .withColumnRenamed("GoF_protect", "drugGoF_protect")
     .withColumnRenamed("LoF_protect", "drugLoF_protect")
-    .withColumn(
-        "approved",
-        F.when(F.col("approvedDrug") == 1, F.lit("yes")).otherwise(F.lit("no")),
-    )
-    .withColumn(
-        "newPhases",
-        F.when(F.col("approvedDrug") == 1, F.lit(4)).when(
-            F.col("approvedDrug").isNull(),
-            F.when(F.col("maxClinPhase") == 4, F.lit(3)).otherwise(
-                F.col("maxClinPhase")
-            ),
-        ),
-    )
     # .persist()
 )
 
@@ -407,6 +279,7 @@ benchmark = (
         F.col("name") != "COVID-19"
     )  #### remove COVID-19 associations
 ).join(biosample.select("biosampleId", "biosampleName"), on="biosampleId", how="left")
+
 
 print("built benchmark dataset")
 
@@ -607,7 +480,10 @@ def comparisons_df_iterative(elements):
     predictions = spark.createDataFrame(
         data=[
             ("Phase4", "clinical"),
-            ("PhaseT", "clinical"),
+            #('Phase>=3','clinical'),
+            #('Phase>=2','clinical'),
+            #('Phase>=1','clinical'),
+            #("PhaseT", "clinical"),
         ]
     )
     return comparisons.join(predictions, how="full").collect()
@@ -631,34 +507,13 @@ full_data = spark.createDataFrame(
     ),
 )
 print("created full_data and lists")
-""" 
+
 rightTissue = spark.read.csv(
-    "gs://ot-team/jroldan/analysis/jroldan_analysis_curationBioSampleNameDiseaseCredibleSet_curated.csv/",
-    header=True,
-).drop("_c0", "rightTissue2", "_c6", "therapeuticAreas")
-"""
-rightTissue = spark.read.csv(
-    "gs://ot-team/jroldan/analysis/jroldan_analysis_secondCuration_latest.csv",
+    'gs://ot-team/jroldan/analysis/20250402_rightTissueListMarchRelease.csv',
     header=True,
 ).drop("_c0")
 
 print("loaded rightTissue dataset")
-""" previous negative reasons used
-### target-diseases terminated&withdrawal in clin trials
-terminated = spark.read.csv(
-    "gs://ot-team/jroldan/analysis/targetDiseaseStoppedNegative.csv",
-    sep=",",
-    header=True,
-).drop("_c0", "Withdrawn")
-
-print("loaded terminated dataset")
-
-terminated_array = (
-    terminated.groupBy("targetId", "diseaseId")
-    .agg(F.collect_set("clinicalStatus").alias("clinicalStatus"))
-    .withColumn("prediction", F.when(F.col("clinicalStatus").isNotNull(), F.lit("yes")))
-)
-"""
 
 negativeTD = (
     evidences.filter(F.col("datasourceId") == "chembl")
@@ -728,8 +583,6 @@ for col in variables_study:
             "targetId",
             "diseaseId",
             "maxClinPhase",
-            "approved",
-            "newPhases",
             "rightTissue",
             "isRightTissueSignalAgreed",
             "isSignalFromRightTissue",
@@ -759,26 +612,6 @@ for col in variables_study:
             "Phase>=1",
             F.when(F.col("maxClinPhase") >= 1, F.lit("yes")).otherwise(F.lit("no")),
         )
-        .withColumn(  ###  new phases extracted from aproved label
-            "nPhase4",
-            F.when(F.col("newPhases") == 4, F.lit("yes")).otherwise(F.lit("no")),
-        )
-        .withColumn(
-            "nPhase>=3",
-            F.when(F.col("newPhases") >= 3, F.lit("yes")).otherwise(F.lit("no")),
-        )
-        .withColumn(
-            "nPhase>=2",
-            F.when(F.col("newPhases") >= 2, F.lit("yes")).otherwise(F.lit("no")),
-        )
-        .withColumn(
-            "nPhase>=1",
-            F.when(F.col("newPhases") >= 1, F.lit("yes")).otherwise(F.lit("no")),
-        )
-        .withColumn(
-            "approved",
-            F.when(F.col("approved") == "yes", F.lit("yes")).otherwise(F.lit("no")),
-        )
         .select(
             ["*"]
             + (
@@ -791,30 +624,6 @@ for col in variables_study:
                     ]
                 ]
             )
-            + (
-                [  ### single columns
-                    F.when(
-                        (F.array_contains(F.col(x), "yes"))
-                        & (F.col("rightTissue") == "yes"),
-                        F.lit("yes"),
-                    )
-                    .otherwise(F.lit("no"))
-                    .alias(f"{x}_tissue")
-                    for x, value in [
-                        (key, val) for key, val in disdic.items() if val == col
-                    ]
-                ]
-            )  ##### isSignalFromRightTissue
-            + (
-                [
-                    F.when(F.col("isSignalFromRightTissue") == "yes", F.lit("yes"))
-                    .otherwise(F.lit("no"))
-                    .alias(f"{x}_isSignalFromRightTissue")
-                    for x, value in [
-                        (key, val) for key, val in disdic.items() if val == col
-                    ]
-                ]
-            )  ##### is right tissue signal agree with drug?
             + (
                 [
                     F.when(
@@ -844,41 +653,97 @@ result_all = []
 today_date = str(date.today())
 variables_study = ["projectId", "biosampleName", "rightStudyType", "colocDoE"]
 
-for key, df in pivoted_dfs.items():
-    unique_values = benchmark.select(key).distinct().rdd.flatMap(lambda x: x).collect()
-    filter = len(pivoted_dfs[key].drop(*unique_values).columns[21:])
-    rows = comparisons_df_iterative(pivoted_dfs[key].columns[-filter:])
-    for row in rows:
-        print(row)
-        results = aggregations_original(
-            pivoted_dfs[key], "propagated", listado, *row, today_date
-        )
-        result_all.append(results)
+##### PROJECT ID ###### 
+print('working with projectId')
+pivoted_dfs['projectId'].persist()
+unique_values = benchmark.select('projectId').distinct().rdd.flatMap(lambda x: x).collect()
+filter = len(pivoted_dfs['projectId'].drop(*unique_values).columns[12:])
+print('There are ', filter, 'columns to analyse with phases')
+rows = comparisons_df_iterative(pivoted_dfs['projectId'].columns[-filter:])
 
-    schema = StructType(
-        [
-            StructField("group", StringType(), True),
-            StructField("comparison", StringType(), True),
-            StructField("phase", StringType(), True),
-            StructField("oddsRatio", DoubleType(), True),
-            StructField("pValue", DoubleType(), True),
-            StructField("lowerInterval", DoubleType(), True),
-            StructField("upperInterval", DoubleType(), True),
-            StructField("total", StringType(), True),
-            StructField("values", ArrayType(ArrayType(IntegerType())), True),
-            StructField("relSuccess", DoubleType(), True),
-            StructField("rsLower", DoubleType(), True),
-            StructField("rsUpper", DoubleType(), True),
-            StructField("path", StringType(), True),
-        ]
+# If needed, now process the rest
+for row in rows:
+    results = aggregations_original(
+        pivoted_dfs['projectId'], "propagated", listado, *row, today_date
     )
+    result_all.append(results)
+
+pivoted_dfs['projectId'].unpersist()
+print('df unpersisted')
+
+##### BIOSAMPLE NAME ###### 
+print('working with biosampleName')
+pivoted_dfs['biosampleName'].persist()
+unique_values = benchmark.select('biosampleName').distinct().rdd.flatMap(lambda x: x).collect()
+filter = len(pivoted_dfs['biosampleName'].drop(*unique_values).columns[12:])
+print('There are ', filter, 'columns to analyse with phases')
+rows = comparisons_df_iterative(pivoted_dfs['biosampleName'].columns[-filter:])
+
+for row in rows:
+    results = aggregations_original(
+        pivoted_dfs['biosampleName'], "propagated", listado, *row, today_date
+    )
+    result_all.append(results)
+
+pivoted_dfs['biosampleName'].unpersist()
+print('df unpersisted')
+
+##### RIGHTSTUDYTYPE  ###### 
+print('working with rightStudyType')
+pivoted_dfs['rightStudyType'].persist()
+unique_values = benchmark.select('rightStudyType').distinct().rdd.flatMap(lambda x: x).collect()
+filter = len(pivoted_dfs['rightStudyType'].drop(*unique_values).columns[12:])
+print('There are ', filter, 'columns to analyse with phases')
+rows = comparisons_df_iterative(pivoted_dfs['rightStudyType'].columns[-filter:])
+
+for row in rows:
+    results = aggregations_original(
+        pivoted_dfs['rightStudyType'], "propagated", listado, *row, today_date
+    )
+    result_all.append(results)
+pivoted_dfs['rightStudyType'].unpersist()
+print('df unpersisted')
+
+##### COLOC DOE ######
+print('working with colocDoE')
+pivoted_dfs['colocDoE'].persist()
+unique_values = benchmark.select('colocDoE').distinct().rdd.flatMap(lambda x: x).collect()
+filter = len(pivoted_dfs['colocDoE'].drop(*unique_values).columns[12:])
+print('There are ', filter, 'columns to analyse with phases')
+rows = comparisons_df_iterative(pivoted_dfs['colocDoE'].columns[-filter:])
+
+for row in rows:
+    results = aggregations_original(
+        pivoted_dfs['colocDoE'], "propagated", listado, *row, today_date
+    )
+    result_all.append(results)
+pivoted_dfs['colocDoE'].unpersist()
+print('df unpersisted')
+
+schema = StructType(
+    [
+        StructField("group", StringType(), True),
+        StructField("comparison", StringType(), True),
+        StructField("phase", StringType(), True),
+        StructField("oddsRatio", DoubleType(), True),
+        StructField("pValue", DoubleType(), True),
+        StructField("lowerInterval", DoubleType(), True),
+        StructField("upperInterval", DoubleType(), True),
+        StructField("total", StringType(), True),
+        StructField("values", ArrayType(ArrayType(IntegerType())), True),
+        StructField("relSuccess", DoubleType(), True),
+        StructField("rsLower", DoubleType(), True),
+        StructField("rsUpper", DoubleType(), True),
+        StructField("path", StringType(), True),
+    ]
+)
 import re
 
 # Define the list of patterns to search for
 patterns = [
     "_only",
-    "_tissue",
-    "_isSignalFromRightTissue",
+    #"_tissue",
+    #"_isSignalFromRightTissue",
     "_isRightTissueSignalAgreed",
 ]
 # Create a regex pattern to match any of the substrings
@@ -900,6 +765,7 @@ df = (
         ),  # Extract the pattern itself
     )
 )
+
 df.toPandas().to_csv(
     f"gs://ot-team/jroldan/analysis/{today_date}_credibleSetColocDoEanalysis_RightTissues.csv"
 )
