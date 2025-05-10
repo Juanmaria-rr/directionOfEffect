@@ -185,4 +185,4 @@ def doeFunction(path_n,new,credible,index,evidences,diseases):
     allowMissingColumns=True,
     )
 
-    return assessment_all
+    return gwasCredibleAssoc,assessment
