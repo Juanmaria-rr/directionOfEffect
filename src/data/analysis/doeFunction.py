@@ -16,6 +16,7 @@ def doeFunction(path_n,new,credible,index,evidences,diseases):
     from functions import (
     temporary_directionOfEffect,
     )
+    import pyspark.sql.functions as F
 
     newColoc = (
         new.join(
