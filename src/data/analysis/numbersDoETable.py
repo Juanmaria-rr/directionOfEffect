@@ -65,7 +65,7 @@ gwasCredibleAssoc.withColumn(
                 F.when(F.col("homogenized").isin(["LoF_protect","GoF_protect"]), F.lit("protect")
                 ).when(F.col("homogenized").isin(["LoF_risk","GoF_risk"]), F.lit("risk")
                 ).otherwise(F.lit("noEvaluable"))
-    ).select("targetId", "diseaseId", "homogenized","variantEffect","directionOnTrait"))
+    ).select("targetId", "diseaseId", "homogenized","variantEffect","directionOnTrait")
 
 
 ### replace     
