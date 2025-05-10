@@ -226,11 +226,11 @@ def temporary_directionOfEffect(path, datasource_filter):
         spark.read.parquet(f"{path}evidence/")
         .filter(F.col("datasourceId").isin(datasource_filter))
         .persist()
-    )
+    ).withColumn('variantFunctionalConsequenceFromQtlId', F.lit(None)) ### create mock column to avoid fixing temporaryDirectionOfEffect
 
     # Create the paths using the version variable
-    target_path = f"{path}targets/"
-    mecact_path = f"{path}mechanismOfAction/"
+    target_path = f"{path}target/"
+    mecact_path = f"{path}drug_mechanism_of_action/" #  mechanismOfAction == old version
 
     target = spark.read.parquet(target_path)
     mecact = spark.read.parquet(mecact_path)
