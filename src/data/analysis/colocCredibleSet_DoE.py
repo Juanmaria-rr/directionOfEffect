@@ -480,10 +480,10 @@ def comparisons_df_iterative(elements):
     predictions = spark.createDataFrame(
         data=[
             ("Phase4", "clinical"),
-            #('Phase>=3','clinical'),
-            #('Phase>=2','clinical'),
-            #('Phase>=1','clinical'),
-            #("PhaseT", "clinical"),
+            ('Phase>=3','clinical'),
+            ('Phase>=2','clinical'),
+            ('Phase>=1','clinical'),
+            ("PhaseT", "clinical"),
         ]
     )
     return comparisons.join(predictions, how="full").collect()
