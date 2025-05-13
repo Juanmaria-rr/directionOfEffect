@@ -766,7 +766,16 @@ df = (
     )
 )
 
-df.toPandas().to_csv(
+### annotate projectId, tissue, qtl type and doe type:
+
+from pyspark.sql.functions import create_map
+from itertools import chain
+
+mapping_expr=create_map([F.lit(x) for x in chain(*disdic.items())])
+
+df_annot=df.withColumn('annotation',mapping_expr.getItem(F.col('prefix')))
+
+df_annot.toPandas().to_csv(
     f"gs://ot-team/jroldan/analysis/{today_date}_credibleSetColocDoEanalysis_RightTissues.csv"
 )
 
