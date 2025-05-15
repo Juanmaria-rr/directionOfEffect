@@ -123,20 +123,20 @@ resolvedColoc = (
         .join(
             gwasComplete.withColumnRenamed("studyLocusId", "leftStudyLocusId"),
             on=["leftStudyLocusId", "targetId"],
-            how="inner",
+            how="right", ### has to be right 
         )
-        .join(  ### propagated using parent terms
-            diseases.selectExpr(
-                "id as diseaseId", "name", "parents", "therapeuticAreas"
-            ),
-            on="diseaseId",
-            how="left",
-        )
-        .withColumn(
-            "diseaseId",
-            F.explode_outer(F.concat(F.array(F.col("diseaseId")), F.col("parents"))),
-        )
-        .drop("parents", "oldDiseaseId")
+#        .join(  ### propagated using parent terms  ### no propagation yet 
+#            diseases.selectExpr(
+#                "id as diseaseId", "name", "parents", "therapeuticAreas"
+#            ),
+#            on="diseaseId",
+#            how="left",
+#        )
+#        .withColumn(
+#            "diseaseId",
+#            F.explode_outer(F.concat(F.array(F.col("diseaseId")), F.col("parents"))),
+#        )
+#        .drop("parents", "oldDiseaseId")
     ).withColumn(
         "colocDoE",
         F.when(
@@ -519,15 +519,15 @@ def full_analysis_propagation(
             F.expr("aggregate(arrayN, 0, (acc, x) -> acc + IF(x = maxDoE, 1, 0))")
         ).withColumn(
             "NoneCellYes",
-            F.when(F.col("LoF_protect_ch").isNotNull() & (F.array_contains(F.col("maxDoE_names"), F.lit("LoF_protect")))==True, F.lit('yes'))
-            .when(F.col("GoF_protect_ch").isNotNull() & (F.array_contains(F.col("maxDoE_names"), F.lit("GoF_protect")))==True, F.lit('yes')
+            F.when((F.col("LoF_protect_ch").isNotNull() & (F.col('GoF_protect_ch').isNull())) & (F.array_contains(F.col("maxDoE_names"), F.lit("LoF_protect")))==True, F.lit('yes'))
+            .when((F.col("GoF_protect_ch").isNotNull() & (F.col('LoF_protect_ch').isNull())) & (F.array_contains(F.col("maxDoE_names"), F.lit("GoF_protect")))==True, F.lit('yes')
                 ).otherwise(F.lit('no'))  # If the value is null, return null # Otherwise, check if name is in array
         ).withColumn(
             "NdiagonalYes",
-            F.when(F.col("LoF_protect_ch").isNotNull() & 
+            F.when((F.col("LoF_protect_ch").isNotNull() & (F.col('GoF_protect_ch').isNull())) & 
                 (F.size(F.array_intersect(F.col("maxDoE_names"), F.array([F.lit(x) for x in diagonal_lof]))) > 0),
                 F.lit("yes")
-            ).when(F.col("GoF_protect_ch").isNotNull() & 
+            ).when((F.col("GoF_protect_ch").isNotNull() & (F.col('LoF_protect_ch').isNull())) & 
                 (F.size(F.array_intersect(F.col("maxDoE_names"), F.array([F.lit(x) for x in diagonal_gof]))) > 0),
                 F.lit("yes")
             ).otherwise(F.lit('no'))
