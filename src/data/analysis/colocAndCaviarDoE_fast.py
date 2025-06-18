@@ -321,6 +321,42 @@ variables_study = ["projectId", "biosampleName", "rightStudyType", "colocDoE","c
 
 # List to hold temporary DataFrames
 temp_dfs_for_union = []
+# Iterate over the column names to prepare DataFrames for union
+for col_name in variables_study:
+    # Select the current column, alias it to 'distinct_value' for consistent schema
+    # Filter out nulls, then get distinct values
+    # Add a literal column with the original 'col_name'
+    df_temp = (
+        benchmark.select(F.col(col_name).alias("distinct_value"))
+        .filter(F.col("distinct_value").isNotNull()) # Exclude None (null) values
+        .distinct()
+        .withColumn("column_name", F.lit(col_name))
+    )
+    temp_dfs_for_union.append(df_temp)
+
+disdic = {}
+
+if temp_dfs_for_union:
+    # Union all the temporary DataFrames.
+    # unionByName is crucial to handle potential schema differences (e.g., if columns have same name but different types)
+    # and ensures columns are matched by name.
+    combined_distinct_values_df = temp_dfs_for_union[0]
+    for i in range(1, len(temp_dfs_for_union)):
+        combined_distinct_values_df = combined_distinct_values_df.unionByName(temp_dfs_for_union[i])
+
+    # Now, collect the combined distinct values.
+    # This is a single collect operation on the aggregated DataFrame.
+    print("Collecting combined distinct values from the cluster...")
+    collected_rows = combined_distinct_values_df.collect()
+
+    # Populate the dictionary from the collected rows
+    for row in collected_rows:
+        disdic[row.distinct_value] = row.column_name
+else:
+    print("variables_study list is empty, disdic will be empty.")
+
+
+print("\nFinal disdic:", disdic)
 
 pivoted_dfs={}
 # Iterate over the column names to prepare DataFrames for union
