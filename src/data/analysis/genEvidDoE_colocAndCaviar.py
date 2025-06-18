@@ -192,7 +192,7 @@ resolvedColoc = (
     # .persist()
 )
 print("loaded resolvedColloc")
-
+resolvedColocFiltered = resolvedColoc.filter((F.col('clpp')>=0.01) | (F.col('h4')>=0.8))
 datasource_filter = [
     #"gwas_credible_set", remove so avoid potential duplicates as it will be incorporated later (DoE is done separately)
     "gene_burden",
@@ -233,7 +233,7 @@ window_spec_qtl = Window.partitionBy("targetId", "diseaseId",'leftStudyId').orde
 )
 # qtlPValueExponent
 gwasCredibleAssoc_qtlPValue = (
-    resolvedColoc.withColumn(
+    resolvedColocFiltered.withColumn(
         "homogenized", F.first("colocDoE", ignorenulls=True).over(window_spec_qtl)
     )  ## added 30.01.2025
     .select("targetId", "diseaseId",'leftStudyId', "homogenized")
