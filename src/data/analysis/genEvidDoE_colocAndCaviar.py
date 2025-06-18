@@ -216,7 +216,7 @@ window_spec = Window.partitionBy("targetId", "diseaseId",'leftStudyId').orderBy(
     F.col("pValueExponent").asc()
 )
 gwasCredibleAssoc = (
-    resolvedColoc.withColumn(
+    resolvedColocFiltered.withColumn(
         "homogenized", F.first("colocDoE", ignorenulls=True).over(window_spec)
     )  ## added 30.01.2025
     .select("targetId", "diseaseId",'leftStudyId', "homogenized")
