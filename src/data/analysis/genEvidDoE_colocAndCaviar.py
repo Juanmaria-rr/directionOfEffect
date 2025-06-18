@@ -131,7 +131,7 @@ resolvedColoc = (
         .join(
             gwasComplete.withColumnRenamed("studyLocusId", "leftStudyLocusId"),
             on=["leftStudyLocusId", "targetId"],
-            how="inner",
+            how="right", ## has to be right to have the whole genetic evidence subset (having doe or not)
         )
         #.join(  ### propagated using parent terms
         #    diseases.selectExpr(
