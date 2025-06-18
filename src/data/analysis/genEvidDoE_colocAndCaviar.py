@@ -1,3 +1,4 @@
+#### testing ecaviar for genevid analysis
 import time
 #from array import ArrayType
 from functions import (
@@ -227,6 +228,24 @@ gwasCredibleAssoc = (
     )
 )
 
+window_spec_qtl = Window.partitionBy("targetId", "diseaseId",'leftStudyId').orderBy( ### include gwas study
+    F.col("qtlPValueExponent").asc()
+)
+# qtlPValueExponent
+gwasCredibleAssoc_qtlPValue = (
+    resolvedColoc.withColumn(
+        "homogenized", F.first("colocDoE", ignorenulls=True).over(window_spec_qtl)
+    )  ## added 30.01.2025
+    .select("targetId", "diseaseId",'leftStudyId', "homogenized")
+    .withColumn(
+        "homogenized",
+        F.when(F.col("homogenized").isNull(), F.lit("noEvaluable")).otherwise(
+            F.col("homogenized")
+        ),
+    )
+)
+
+
 print("Moving to step 2")
 
 columns_chembl = ["LoF_protect", "GoF_protect"]
@@ -305,7 +324,7 @@ negativeTD = (
 )
 
 assessment_all = assessment.unionByName(
-    gwasCredibleAssoc.withColumn("datasourceId", F.lit("gwas_credible_set")),
+    gwasCredibleAssoc_qtlPValue.withColumn("datasourceId", F.lit("gwas_credible_set")),
     allowMissingColumns=True,
 )
 
@@ -757,17 +776,17 @@ wCgc_list = [
 ]
 
 datasource_list = [
-    "gene_burden",
-    "intogen",
-    "cancer_gene_census",
-    "eva",
-    "eva_somatic",
+    #"gene_burden",
+    #"intogen",
+    #"cancer_gene_census",
+    #"eva",
+    #"eva_somatic",
     "gwas_credible_set",
-    "impc",
-    "orphanet",
-    "gene2phenotype",
-    "WOcgc",
-    "wCgc",
+    #"impc",
+    #"orphanet",
+    #"gene2phenotype",
+    #"WOcgc",
+    #"wCgc",
     "somatic",
     "germline",
 ]
@@ -797,24 +816,24 @@ def dataset_builder(assessment_all, value, analysis_chembl, negativeTD, diseaseT
         ## All
         nonPropagated,
         ## Other
-        nonPropagated.filter(F.col("taLabelSimple") == "Other"),
-        ## Other&Null
-        nonPropagated.filter(
-            (F.col("taLabelSimple").isNull()) | (F.col("taLabelSimple") == "Other")
-        ),
-        ## Oncology
-        nonPropagated.filter(F.col("taLabelSimple") == "Oncology"),
+#        nonPropagated.filter(F.col("taLabelSimple") == "Other"),
+#        ## Other&Null
+#        nonPropagated.filter(
+#            (F.col("taLabelSimple").isNull()) | (F.col("taLabelSimple") == "Other")
+#        ),
+#        ## Oncology
+#        nonPropagated.filter(F.col("taLabelSimple") == "Oncology"),
         # Propagation
         ## All
         propagated,
         ## Other
-        propagated.filter(F.col("taLabelSimple") == "Other"),
-        ## Other&Null
-        propagated.filter(
-            (F.col("taLabelSimple").isNull()) | (F.col("taLabelSimple") == "Other")
-        ),
-        ## Oncology
-        propagated.filter(F.col("taLabelSimple") == "Oncology"),
+#        propagated.filter(F.col("taLabelSimple") == "Other"),
+#        ## Other&Null
+#        propagated.filter(
+#            (F.col("taLabelSimple").isNull()) | (F.col("taLabelSimple") == "Other")
+#        ),
+#        ## Oncology
+#        propagated.filter(F.col("taLabelSimple") == "Oncology"),
     )
 
 
@@ -849,13 +868,13 @@ for value in datasource_list:
     elif value == "germline":
         (
             dfs_dict[f"df_{value}_All_original"],
-            dfs_dict[f"df_{value}_Other_original"],
-            dfs_dict[f"df_{value}_OtherNull_original"],
-            dfs_dict[f"df_{value}_Oncology_original"],
+            #dfs_dict[f"df_{value}_Other_original"],
+            #dfs_dict[f"df_{value}_OtherNull_original"],
+            #dfs_dict[f"df_{value}_Oncology_original"],
             dfs_dict_propag[f"df_{value}_All_propag"],
-            dfs_dict_propag[f"df_{value}_Other_propag"],
-            dfs_dict_propag[f"df_{value}_OtherNull_propag"],
-            dfs_dict_propag[f"df_{value}_Oncology_propag"],
+            #dfs_dict_propag[f"df_{value}_Other_propag"],
+            #dfs_dict_propag[f"df_{value}_OtherNull_propag"],
+            #dfs_dict_propag[f"df_{value}_Oncology_propag"],
         ) = dataset_builder(
             assessment_all,
             germline_list,
@@ -867,13 +886,13 @@ for value in datasource_list:
     elif value == "somatic":
         (
             dfs_dict[f"df_{value}_All_original"],
-            dfs_dict[f"df_{value}_Other_original"],
-            dfs_dict[f"df_{value}_OtherNull_original"],
-            dfs_dict[f"df_{value}_Oncology_original"],
+            #dfs_dict[f"df_{value}_Other_original"],
+            #dfs_dict[f"df_{value}_OtherNull_original"],
+            #dfs_dict[f"df_{value}_Oncology_original"],
             dfs_dict_propag[f"df_{value}_All_propag"],
-            dfs_dict_propag[f"df_{value}_Other_propag"],
-            dfs_dict_propag[f"df_{value}_OtherNull_propag"],
-            dfs_dict_propag[f"df_{value}_Oncology_propag"],
+            #dfs_dict_propag[f"df_{value}_Other_propag"],
+            #dfs_dict_propag[f"df_{value}_OtherNull_propag"],
+            #dfs_dict_propag[f"df_{value}_Oncology_propag"],
         ) = dataset_builder(
             assessment_all,
             somatic_list,
@@ -885,13 +904,13 @@ for value in datasource_list:
     else:
         (
             dfs_dict[f"df_{value}_All_original"],
-            dfs_dict[f"df_{value}_Other_original"],
-            dfs_dict[f"df_{value}_OtherNull_original"],
-            dfs_dict[f"df_{value}_Oncology_original"],
+            #dfs_dict[f"df_{value}_Other_original"],
+            #dfs_dict[f"df_{value}_OtherNull_original"],
+            #dfs_dict[f"df_{value}_Oncology_original"],
             dfs_dict_propag[f"df_{value}_All_propag"],
-            dfs_dict_propag[f"df_{value}_Other_propag"],
-            dfs_dict_propag[f"df_{value}_OtherNull_propag"],
-            dfs_dict_propag[f"df_{value}_Oncology_propag"]
+            #dfs_dict_propag[f"df_{value}_Other_propag"],
+            #dfs_dict_propag[f"df_{value}_OtherNull_propag"],
+            #dfs_dict_propag[f"df_{value}_Oncology_propag"]
         ) = dataset_builder(
             assessment_all, value, analysis_chembl, negativeTD, diseaseTA
         )
@@ -1115,8 +1134,6 @@ for key, df in dfs_dict_propag.items():
 print("propagated files wroten succesfully at", c)
 
 
-'''
-
 print("creating pandas dataframe with resulting rows")
 df_results = pd.DataFrame(
     results,
@@ -1184,5 +1201,3 @@ df.withColumn(
 )
 
 print("dataframe written \n Analysis finished")
-
-'''
