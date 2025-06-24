@@ -281,6 +281,9 @@ def temporary_directionOfEffect(path, datasource_filter):
         "AGONIST",
         "SEQUESTERING AGENT",  ## lost at 31.01.2025
         "STABILISER",
+        "EXOGENOUS GENE", ## added 24.06.2025
+        "EXOGENOUS PROTEIN" ## added 24.06.2025
+
     ]
 
     actionType = (
