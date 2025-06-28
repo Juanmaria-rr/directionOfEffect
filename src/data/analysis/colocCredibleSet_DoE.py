@@ -509,7 +509,7 @@ full_data = spark.createDataFrame(
 print("created full_data and lists")
 
 rightTissue = spark.read.csv(
-    'gs://ot-team/jroldan/analysis/20250402_rightTissueListMarchRelease.csv',
+    'gs://ot-team/jroldan/analysis/20250526_curatedRightTissue.csv',
     header=True,
 ).drop("_c0")
 
@@ -642,6 +642,7 @@ for col in variables_study:
 
     # Store the DataFrame in the dictionary
     pivoted_dfs[col] = pivoted_df
+
 
 
 result = []

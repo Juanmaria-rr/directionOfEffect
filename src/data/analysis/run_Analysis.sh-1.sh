@@ -20,11 +20,12 @@ echo "--------------------------" > "$log_filename"
 echo "Description: $description" >> "$log_filename"
 echo "Abbreviation: $abbreviation" >> "$log_filename"
 echo "Date: $current_date" >> "$log_filename"
-echo "log file name: $log_filename" >> "$log_filename"
+echo "Python Script: $python_script" >> "$log_filename"
+echo "Log File: $log_filename" >> "$log_filename"
 echo "--------------------------" >> "$log_filename"
 
-# Run the runAnalysisGeneral.sh script and pass the description, log file name, and Python script as arguments
-bash runAnalysisGeneral.sh "$description" "$current_date" "$python_script" "$log_filename" >> "$log_filename" 2>&1 &
+# Run the Python script in the background and log output
+nohup python3 "$python_script" >> "$log_filename" 2>&1 &
 
-# Tail the log file to see the last 1000 lines
-tail -1000 "$log_filename"
+# Tail the log file in real-time
+tail -f "$log_filename"

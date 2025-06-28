@@ -30,7 +30,7 @@ spark = SparkSession.builder.getOrCreate()
 spark.conf.set(
     "spark.sql.shuffle.partitions", "400"
 )  # Default is 200, increase if needed
-
+print('This time we want to have all Coloc and ecaviar >0.01')
 
 path_n='gs://open-targets-data-releases/25.03/output/'
 
@@ -192,7 +192,7 @@ resolvedColoc = (
     # .persist()
 )
 print("loaded resolvedColloc")
-resolvedColocFiltered = resolvedColoc.filter((F.col('clpp')>=0.01) | (F.col('h4')>=0.8))
+resolvedColocFiltered = resolvedColoc.filter((F.col('clpp')>=0.01) | F.col('h4').isNotNull()) #| (F.col('h4')>=0.8))
 datasource_filter = [
     #"gwas_credible_set", remove so avoid potential duplicates as it will be incorporated later (DoE is done separately)
     "gene_burden",
@@ -1197,7 +1197,7 @@ df.withColumn(
     "type",
     F.regexp_extract(F.col("group"), r"_(propag|original)$", 1)
 ).toPandas().to_csv(
-    f"gs://ot-team/jroldan/analysis/{today_date}_genEvidAnalysis_new.csv"
+    f"gs://ot-team/jroldan/analysis/{today_date}_genEvidAnalysis_new_noColocFilter.csv"
 )
 
 print("dataframe written \n Analysis finished")

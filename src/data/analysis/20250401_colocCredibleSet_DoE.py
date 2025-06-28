@@ -23,7 +23,6 @@ from pyspark.sql.types import (
     FloatType,
 )
 import pandas as pd
-from functools import reduce
 
 spark = SparkSession.builder.getOrCreate()
 spark.conf.set(
@@ -31,7 +30,7 @@ spark.conf.set(
 )  # Default is 200, increase if needed
 
 
-path_n='gs://open-targets-data-releases/25.06/output/'
+path_n='gs://open-targets-data-releases/25.03/output/'
 
 target = spark.read.parquet(f"{path_n}target/")
 
@@ -49,14 +48,10 @@ variantIndex = spark.read.parquet(f"{path_n}variant")
 
 biosample = spark.read.parquet(f"{path_n}biosample")
 
-ecaviar=spark.read.parquet(f"{path_n}colocalisation_ecaviar")
-
-all_coloc=ecaviar.unionByName(new, allowMissingColumns=True)
-
 print("loaded files")
 
 newColoc = (
-    all_coloc.join(
+    new.join(
         credible.selectExpr(  #### studyLocusId from credible set to uncover the codified variants on left side
             "studyLocusId as leftStudyLocusId",
             "StudyId as leftStudyId",
@@ -72,7 +67,6 @@ newColoc = (
             "studyId as rightStudyId",
             "variantId as rightVariantId",
             "studyType as credibleRightStudyType",
-            "pValueExponent as qtlPValueExponent",
             'isTransQtl'
         ),
         on="rightStudyLocusId",
@@ -190,8 +184,10 @@ resolvedColoc = (
 )
 print("loaded resolvedColloc")
 
+path = "gs://open-targets-pre-data-releases/24.12-uo_test-3/output/etl/parquet/"
+
 datasource_filter = [
-#   "ot_genetics_portal",
+    "ot_genetics_portal",
     "gwas_credible_sets",
     "gene_burden",
     "eva",
@@ -226,7 +222,7 @@ analysis_chembl_indication = (
         .pivot("homogenized")
         .agg(F.count("targetId"))
     )
-    #.filter(F.col("coherencyDiagonal") == "coherent")
+    .filter(F.col("coherencyDiagonal") == "coherent")
     .drop(
         "coherencyDiagonal", "coherencyOneCell", "noEvaluable", "GoF_risk", "LoF_risk"
     )
@@ -249,7 +245,7 @@ chemblAssoc = (
         .pivot("homogenized")
         .count()
     )
-    #.filter(F.col("coherencyDiagonal") == "coherent")
+    .filter(F.col("coherencyDiagonal") == "coherent")
     .drop(
         "coherencyDiagonal", "coherencyOneCell", "noEvaluable", "GoF_risk", "LoF_risk"
     )
@@ -258,6 +254,53 @@ chemblAssoc = (
 )
 
 print("built chemblAssoc dataset")
+
+benchmark = (
+    (
+        resolvedColoc.filter(F.col("betaGwas") < 0)
+        .join(  ### select just GWAS giving protection
+            analysis_chembl_indication, on=["targetId", "diseaseId"], how="inner"
+        )
+        .withColumn(
+            "AgreeDrug",
+            F.when(
+                (F.col("drugGoF_protect").isNotNull())
+                & (F.col("colocDoE") == "GoF_protect"),
+                F.lit("yes"),
+            )
+            .when(
+                (F.col("drugLoF_protect").isNotNull())
+                & (F.col("colocDoE") == "LoF_protect"),
+                F.lit("yes"),
+            )
+            .otherwise(F.lit("no")),
+        )
+    ).filter(
+        F.col("name") != "COVID-19"
+    )  #### remove COVID-19 associations
+).join(biosample.select("biosampleId", "biosampleName"), on="biosampleId", how="left")
+
+
+print("built benchmark dataset")
+
+#### Analysis
+
+#### 1 Build a dictionary with the distinct values as key and column names as value
+variables_study = ["projectId", "biosampleName", "rightStudyType", "colocDoE"]
+
+# Initialize an empty dictionary
+disdic = {}
+
+# Iterate over the list of column names
+for col_name in variables_study:
+    # Extract distinct values for the column
+    distinct_values = benchmark.select(col_name).distinct().collect()
+
+    # Populate the dictionary
+    for row in distinct_values:
+        distinct_value = row[col_name]
+        if distinct_value is not None:  # Exclude None (null) values
+            disdic[distinct_value] = col_name
 
 ####2 Define agregation function
 import pandas as pd
@@ -436,11 +479,11 @@ def comparisons_df_iterative(elements):
 
     predictions = spark.createDataFrame(
         data=[
-            ("Phase>=4", "clinical"),
-            ('Phase>=3','clinical'),
-            ('Phase>=2','clinical'),
-            ('Phase>=1','clinical'),
-            ("PhaseT", "clinical"),
+            ("Phase4", "clinical"),
+            #('Phase>=3','clinical'),
+            #('Phase>=2','clinical'),
+            #('Phase>=1','clinical'),
+            #("PhaseT", "clinical"),
         ]
     )
     return comparisons.join(predictions, how="full").collect()
@@ -465,10 +508,10 @@ full_data = spark.createDataFrame(
 )
 print("created full_data and lists")
 
-#rightTissue = spark.read.csv(
-#    'gs://ot-team/jroldan/analysis/20250526_rightTissue.csv',
-#    header=True,
-#).drop("_c0")
+rightTissue = spark.read.csv(
+    'gs://ot-team/jroldan/analysis/20250402_rightTissueListMarchRelease.csv',
+    header=True,
+).drop("_c0")
 
 print("loaded rightTissue dataset")
 
@@ -484,228 +527,121 @@ negativeTD = (
 
 print("built negativeTD dataset")
 
+bench2 = benchmark.join(
+    rightTissue, on=["name", "bioSampleName"], how="left"
+).withColumn(
+    "rightTissue",
+    F.when(F.col("rightTissue1") == "yes", F.lit("yes")).otherwise(F.lit("no")),
+)
+
 print("built bench2 dataset")
 
 ###### cut from here
 print("looping for variables_study")
+# List of columns to analyze
+variables_study = ["projectId", "biosampleName", "rightStudyType", "colocDoE"]
 
-#### new part with chatgpt -- TEST
-
-## QUESTIONS TO ANSWER:
-# HAVE ECAVIAR >=0.8
-# HAVE COLOC 
-# HAVE COLOC >= 0.8
-# HAVE COLOC + ECAVIAR >= 0.01
-# HAVE COLOC >= 0.8 + ECAVIAR >= 0.01
-# RIGHT JOING WITH CHEMBL 
-
-resolvedColocFiltered = resolvedColoc.filter((F.col('clpp')>=0.01) | (F.col('h4')>=0.8))
-benchmark = (
-    (
-        resolvedColocFiltered.filter(F.col("betaGwas") < 0).filter(
-        F.col("name") != "COVID-19"
-    )
-        .join(  ### select just GWAS giving protection
-            analysis_chembl_indication, on=["targetId", "diseaseId"], how="right"  ### RIGHT SIDE
-        )
-        .withColumn(
-            "AgreeDrug",
-            F.when(
-                (F.col("drugGoF_protect").isNotNull())
-                & (F.col("colocDoE") == "GoF_protect"),
-                F.lit("yes"),
-            )
-            .when(
-                (F.col("drugLoF_protect").isNotNull())
-                & (F.col("colocDoE") == "LoF_protect"),
-                F.lit("yes"),
-            )
-            .otherwise(F.lit("no")),
-        )
-    )  #### remove COVID-19 associations
-).join(biosample.select("biosampleId", "biosampleName"), on="biosampleId", how="left")
-
-#bench2 = benchmark.join(
-#    rightTissue, on=["name", "bioSampleName"], how="left"
-#).withColumn(
-#    "rightTissue",
-#    F.when(F.col("rightTissue1") == "yes", F.lit("yes")).otherwise(F.lit("no")),
-#)
-
-print("built benchmark dataset")
-
-## write the benchmark 
-#name='benchmark'
-#output_partitioned_path = f"gs://ot-team/jroldan/analysis/parquetFiles/{name}"
-#benchmark.write.mode("overwrite").parquet(output_partitioned_path)
-#print(f'written {name}')
-#### Analysis
-
-#### 1 Build a dictionary with the distinct values as key and column names as value
-variables_study = ["projectId", "biosampleName", "rightStudyType", "colocDoE","colocalisationMethod"]
-
-# List to hold temporary DataFrames
-temp_dfs_for_union = []
-
-# Iterate over the column names to prepare DataFrames for union
-for col_name in variables_study:
-    # Select the current column, alias it to 'distinct_value' for consistent schema
-    # Filter out nulls, then get distinct values
-    # Add a literal column with the original 'col_name'
-    df_temp = (
-        benchmark.select(F.col(col_name).alias("distinct_value"))
-        .filter(F.col("distinct_value").isNotNull()) # Exclude None (null) values
-        .distinct()
-        .withColumn("column_name", F.lit(col_name))
-    )
-    temp_dfs_for_union.append(df_temp)
-
-disdic = {}
-
-if temp_dfs_for_union:
-    # Union all the temporary DataFrames.
-    # unionByName is crucial to handle potential schema differences (e.g., if columns have same name but different types)
-    # and ensures columns are matched by name.
-    combined_distinct_values_df = temp_dfs_for_union[0]
-    for i in range(1, len(temp_dfs_for_union)):
-        combined_distinct_values_df = combined_distinct_values_df.unionByName(temp_dfs_for_union[i])
-
-    # Now, collect the combined distinct values.
-    # This is a single collect operation on the aggregated DataFrame.
-    print("Collecting combined distinct values from the cluster...")
-    collected_rows = combined_distinct_values_df.collect()
-
-    # Populate the dictionary from the collected rows
-    for row in collected_rows:
-        disdic[row.distinct_value] = row.column_name
-else:
-    print("variables_study list is empty, disdic will be empty.")
-
-
-print("\nFinal disdic:", disdic)
-
-# Assuming 'spark' session, 'benchmark' DataFrame, 'negativeTD' DataFrame, and 'disdic' dictionary are defined
-
-# --- Step 1: Pre-compute 'hasboth' ONCE ---
-# This is a shuffle, but only happens once.
-print("Pre-computing 'hasboth' column...")
-window_target_disease_only = Window.partitionBy('targetId', 'diseaseId')
-benchmark_processed = benchmark.withColumn(
-    'hasboth',
-    F.size(F.collect_set('colocalisationMethod').over(window_target_disease_only))
-)
-
-# You might consider caching this intermediate result if 'benchmark' is very large
-# and you have enough memory, to avoid re-reading from source if possible.
-# benchmark_processed.cache() # or .persist(StorageLevel.MEMORY_AND_DISK)
-# benchmark_processed.count() # Force computation if you cache
-
+# Dictionary to store results
 pivoted_dfs = {}
 
-# --- Step 2: Loop for each variable_study column ---
-for col_name in variables_study:
-    print(f"Processing pivot for: {col_name}")
-
-    # Define window specs for the current iteration, including 'col_name' in partition
-    # (This shuffle is still per iteration, but unavoidable if 'resolvedAgreeDrug' depends on 'col_name' values)
-    current_col_window_spec_qtl = Window.partitionBy("targetId", "diseaseId", col_name).orderBy(F.col("qtlPValueExponent").asc())
-    current_col_pvalue_order_window = Window.partitionBy("targetId", "diseaseId", col_name).orderBy(F.col('colocalisationMethod').asc(), F.col("qtlPValueExponent").asc())
-
-    # Calculate 'resolvedAgreeDrug' for the current 'col_name'
-    # This involves a shuffle per iteration.
-    temp_df_with_resolved = benchmark_processed.withColumn('resolvedAgreeDrug',
-        F.when(F.col('hasboth') > 1,
-            F.first(F.col('AgreeDrug'), ignorenulls=True).over(current_col_pvalue_order_window)
-        ).otherwise(F.first(F.col('AgreeDrug'), ignorenulls=True).over(current_col_window_spec_qtl))
+# Loop over the columns
+for col in variables_study:
+    window_spec = Window.partitionBy("targetId", "diseaseId", col).orderBy(
+        F.col("pValueExponent").asc()
     )
+    print(f"Processing: {col}")
 
-    # --- Step 3: Perform the pivot and join ---
-    # This is an expensive operation (shuffle, potential wide dataframe)
     pivoted_df = (
-        temp_df_with_resolved
+        bench2.withColumn(
+            "rightTissue",
+            F.when(F.col("rightTissue1") == "yes", F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .withColumn(
+            "agree_lowestPval",
+            F.first("AgreeDrug", ignorenulls=True).over(
+                window_spec
+            ),  ### ignore nulls aded 29.01.2025
+            #### take directionality from lowest p value
+        )
+        .withColumn(
+            "isRightTissueSignalAgreed",
+            F.collect_set(
+                F.when(F.col("rightTissue") == "yes", F.col("agree_lowestPval"))
+            ).over(window_spec),
+        )
+        .withColumn(
+            "isSignalFromRightTissue",
+            F.first(
+                F.when(
+                    F.col("AgreeDrug") == F.col("agree_lowestPval"),
+                    F.col("rightTissue"),
+                ),
+                ignorenulls=True,
+            ).over(window_spec),
+        )
         .groupBy(
             "targetId",
             "diseaseId",
             "maxClinPhase",
+            "rightTissue",
+            "isRightTissueSignalAgreed",
+            "isSignalFromRightTissue",
         )
-        .pivot(col_name) # Pivoting on values of the 'col_name' column
-        .agg(F.collect_set("resolvedAgreeDrug"))
-        .join(negativeTD, on=["targetId", "diseaseId"], how="left") # Ensure negativeTD is broadcast if small
-    )
-
-    # --- Step 4: Add derived columns (these are generally cheap) ---
-    for phase in [1, 2, 3, 4]:
-        pivoted_df = pivoted_df.withColumn(
-            f"Phase>={phase}",
-            F.when(F.col("maxClinPhase") >= phase, F.lit("yes")).otherwise(F.lit("no")),
+        .pivot(col)  # Pivot the column dynamically
+        .agg(F.collect_set("agree_lowestPval"))
+        .join(negativeTD, on=["targetId", "diseaseId"], how="left")
+        .withColumn(
+            "PhaseT",
+            F.when(F.col("stopReason") == "Negative", F.lit("yes")).otherwise(
+                F.lit("no")
+            ),
         )
-
-    pivoted_df = pivoted_df.withColumn(
-        "PhaseT",
-        F.when(F.col("stopReason") == "Negative", F.lit("yes")).otherwise(F.lit("no")),
-    )
-
-    # Add _only columns dynamically based on disdic values matching current column
-    matching_keys = [key for key, val in disdic.items() if val == col_name]
-
-    for key in matching_keys:
-        # F.col(key) assumes 'key' refers to a column that exists in pivoted_df after the pivot.
-        pivoted_df = pivoted_df.withColumn(
-            f"{key}_only",
-            F.when(F.array_contains(F.col(key), "yes"), F.lit("yes")).otherwise(F.lit("no")),
+        .withColumn(
+            "Phase4",
+            F.when(F.col("maxClinPhase") == 4, F.lit("yes")).otherwise(F.lit("no")),
         )
+        .withColumn(
+            "Phase>=3",
+            F.when(F.col("maxClinPhase") >= 3, F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .withColumn(
+            "Phase>=2",
+            F.when(F.col("maxClinPhase") >= 2, F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .withColumn(
+            "Phase>=1",
+            F.when(F.col("maxClinPhase") >= 1, F.lit("yes")).otherwise(F.lit("no")),
+        )
+        .select(
+            ["*"]
+            + (
+                [  ### single columns
+                    F.when(F.array_contains(F.col(x), "yes"), F.lit("yes"))
+                    .otherwise(F.lit("no"))
+                    .alias(f"{x}_only")
+                    for x, value in [
+                        (key, val) for key, val in disdic.items() if val == col
+                    ]
+                ]
+            )
+            + (
+                [
+                    F.when(
+                        F.array_contains(F.col("isRightTissueSignalAgreed"), "yes"),
+                        F.lit("yes"),
+                    )
+                    .otherwise(F.lit("no"))
+                    .alias(f"{x}_isRightTissueSignalAgreed")
+                    for x, value in [
+                        (key, val) for key, val in disdic.items() if val == col
+                    ]
+                ]
+            )
+        )
+    )  # Collect unique values
 
-### making columns for the 
-
-    # --- Step 5: Store result. Consider writing to GCS to break lineage if memory is an issue ---
-    # This is highly recommended if 'variables_study' is very large.
-    # Write to Parquet for efficient storage and schema preservation.
-    # output_path = f"gs://your-bucket/temp_pivoted_results/{col_name}"
-    # print(f"Writing results for {col_name} to {output_path}")
-    # pivoted_df.write.mode("overwrite").parquet(output_path)
-    # pivoted_dfs[col_name] = spark.read.parquet(output_path) # Read back if needed later
-    # output_partitioned_path = f"gs://ot-team/jroldan/analysis/parquetFiles/pivoted_df_{col_name}"
-    # pivoted_df.write.mode("overwrite").parquet(output_partitioned_path)
-    # print(f"DataFrame successfully written and partitioned to {output_partitioned_path}")
-    # If not writing to GCS, just store the DF in memory (be cautious for large number of DFs)
-
-    pivoted_dfs[col_name] = pivoted_df
-
-##### PROJECTID
-project_keys=[f"{k}_only" for k,v in disdic.items() if v == 'projectId']
-main=['GTEx_only', 'UKB_PPP_EUR_only']
-others=[item for item in project_keys if item not in main]
-
-# First condition: any "yes" in list1
-condition1 = reduce(lambda acc, col: acc | (F.col(col) == "yes"), others[1:], F.col(others[0]) == "yes")
-# Add both columns
-pivoted_dfs['projectId'] = pivoted_dfs['projectId'].withColumn("othersProjectId_only", F.when(condition1, "yes").otherwise("no")) 
-
-##### BIOSAMPLE NAME
-biosample_keys=[f"{k}_only" for k,v in disdic.items() if v == 'biosampleName']
-main=['tibial nerve_only', 'upper lobe of left lung_only','blood plasma_only','lymphoblastoid cell line_only']
-others=[item for item in biosample_keys if item not in main]
-
-# First condition: any "yes" in list1
-condition1 = reduce(lambda acc, col: acc | (F.col(col) == "yes"), others[1:], F.col(others[0]) == "yes")
-# Add both columns
-pivoted_dfs['biosampleName'] = pivoted_dfs['biosampleName'].withColumn("othersBiosampleName_only", F.when(condition1, "yes").otherwise("no")) 
-
-
-##### RIGHTSTUDYTYPE 
-rightStudy_keys=[f"{k}_only" for k,v in disdic.items() if v == 'rightStudyType']
-main=['eqtl_only', 'pqtl_only']
-others=[item for item in rightStudy_keys if item not in main]
-
-# First condition: any "yes" in list1
-condition1 = reduce(lambda acc, col: acc | (F.col(col) == "yes"), others[1:], F.col(others[0]) == "yes")
-# Add both columns
-pivoted_dfs['rightStudyType'] = pivoted_dfs['rightStudyType'].withColumn("otherRightStudyType_only", F.when(condition1, "yes").otherwise("no")) 
-
-
-###append to dictionary
-
-disdic.update({'othersProjectId': 'projectId', 'othersBiosampleName_only': 'biosampleName', 'otherRightStudyType':'rightStudyType'})
+    # Store the DataFrame in the dictionary
+    pivoted_dfs[col] = pivoted_df
 
 
 result = []
@@ -715,12 +651,13 @@ array2 = []
 listado = []
 result_all = []
 today_date = str(date.today())
+variables_study = ["projectId", "biosampleName", "rightStudyType", "colocDoE"]
 
 ##### PROJECT ID ###### 
 print('working with projectId')
 pivoted_dfs['projectId'].persist()
-unique_values = benchmark.select('projectId').filter(F.col('projectId').isNotNull()).distinct().rdd.flatMap(lambda x: x).collect()
-filter = len(pivoted_dfs['projectId'].drop(*unique_values).columns[10:])
+unique_values = benchmark.select('projectId').distinct().rdd.flatMap(lambda x: x).collect()
+filter = len(pivoted_dfs['projectId'].drop(*unique_values).columns[12:])
 print('There are ', filter, 'columns to analyse with phases')
 rows = comparisons_df_iterative(pivoted_dfs['projectId'].columns[-filter:])
 
@@ -737,8 +674,8 @@ print('df unpersisted')
 ##### BIOSAMPLE NAME ###### 
 print('working with biosampleName')
 pivoted_dfs['biosampleName'].persist()
-unique_values = benchmark.select('biosampleName').filter(F.col('biosampleName').isNotNull()).distinct().rdd.flatMap(lambda x: x).collect()
-filter = len(pivoted_dfs['biosampleName'].drop(*unique_values).columns[10:])
+unique_values = benchmark.select('biosampleName').distinct().rdd.flatMap(lambda x: x).collect()
+filter = len(pivoted_dfs['biosampleName'].drop(*unique_values).columns[12:])
 print('There are ', filter, 'columns to analyse with phases')
 rows = comparisons_df_iterative(pivoted_dfs['biosampleName'].columns[-filter:])
 
@@ -754,8 +691,8 @@ print('df unpersisted')
 ##### RIGHTSTUDYTYPE  ###### 
 print('working with rightStudyType')
 pivoted_dfs['rightStudyType'].persist()
-unique_values = benchmark.select('rightStudyType').filter(F.col('rightStudyType').isNotNull()).distinct().rdd.flatMap(lambda x: x).collect()
-filter = len(pivoted_dfs['rightStudyType'].drop(*unique_values).columns[10:])
+unique_values = benchmark.select('rightStudyType').distinct().rdd.flatMap(lambda x: x).collect()
+filter = len(pivoted_dfs['rightStudyType'].drop(*unique_values).columns[12:])
 print('There are ', filter, 'columns to analyse with phases')
 rows = comparisons_df_iterative(pivoted_dfs['rightStudyType'].columns[-filter:])
 
@@ -770,8 +707,8 @@ print('df unpersisted')
 ##### COLOC DOE ######
 print('working with colocDoE')
 pivoted_dfs['colocDoE'].persist()
-unique_values = benchmark.select('colocDoE').filter(F.col('colocDoE').isNotNull()).distinct().rdd.flatMap(lambda x: x).collect()
-filter = len(pivoted_dfs['colocDoE'].drop(*unique_values).columns[10:])
+unique_values = benchmark.select('colocDoE').distinct().rdd.flatMap(lambda x: x).collect()
+filter = len(pivoted_dfs['colocDoE'].drop(*unique_values).columns[12:])
 print('There are ', filter, 'columns to analyse with phases')
 rows = comparisons_df_iterative(pivoted_dfs['colocDoE'].columns[-filter:])
 
@@ -781,22 +718,6 @@ for row in rows:
     )
     result_all.append(results)
 pivoted_dfs['colocDoE'].unpersist()
-print('df unpersisted')
-
-##### COLOCALISATION METHOD ######
-print('working with colocalisationMethod')
-pivoted_dfs['colocalisationMethod'].persist()
-unique_values = benchmark.select('colocalisationMethod').filter(F.col('colocalisationMethod').isNotNull()).distinct().rdd.flatMap(lambda x: x).collect()
-filter = len(pivoted_dfs['colocalisationMethod'].drop(*unique_values).columns[10:])
-print('There are ', filter, 'columns to analyse with phases')
-rows = comparisons_df_iterative(pivoted_dfs['colocalisationMethod'].columns[-filter:])
-
-for row in rows:
-    results = aggregations_original(
-        pivoted_dfs['colocalisationMethod'], "propagated", listado, *row, today_date
-    )
-    result_all.append(results)
-pivoted_dfs['colocalisationMethod'].unpersist()
 print('df unpersisted')
 
 schema = StructType(
@@ -845,17 +766,8 @@ df = (
     )
 )
 
-### annotate projectId, tissue, qtl type and doe type:
-
-from pyspark.sql.functions import create_map
-from itertools import chain
-
-mapping_expr=create_map([F.lit(x) for x in chain(*disdic.items())])
-
-df_annot=df.withColumn('annotation',mapping_expr.getItem(F.col('prefix')))
-
-df_annot.toPandas().to_csv(
-    f"gs://ot-team/jroldan/analysis/{today_date}_credibleSetColocDoEanalysis_filteredColocAndCaviarWithOthers4phases.csv"
+df.toPandas().to_csv(
+    f"gs://ot-team/jroldan/analysis/{today_date}_credibleSetColocDoEanalysis_RightTissues.csv"
 )
 
 print("dataframe written \n Analysis finished")

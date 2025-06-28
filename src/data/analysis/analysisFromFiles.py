@@ -8,6 +8,8 @@ from functions import (
     discrepancifier,
     temporary_directionOfEffect,
 )
+
+
 from functions import relative_success, spreadSheetFormatter, convertTuple
 import re
 import pandas as pd
@@ -31,12 +33,60 @@ from pyspark.sql.types import (
     ArrayType
 )
 import pandas as pd
-import gcsfs
-
 
 from pyspark.sql import SparkSession
 import numpy as np
+
+from itertools import islice
+import time
+#from array import ArrayType
+from functions import (
+    relative_success,
+    spreadSheetFormatter,
+    discrepancifier,
+    temporary_directionOfEffect,
+)
+# from stoppedTrials import terminated_td
+from DoEAssessment import directionOfEffect
+# from membraneTargets import target_membrane
+from pyspark.sql import SparkSession, Window
+import pyspark.sql.functions as F
+#from itertools import islice
+from datetime import datetime
+from datetime import date
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    DoubleType,
+    StringType,
+    IntegerType,
+    ArrayType
+)
+import pandas as pd
+
+
 spark = SparkSession.builder.getOrCreate()
+spark.conf.set(
+    "spark.sql.shuffle.partitions", "400"
+) 
+
+from google.cloud import storage
+
+bucket_name = "ot-team"
+prefix = "jroldan/2025-04-24_analysis/"
+
+client = storage.Client()
+bucket = client.get_bucket(bucket_name)
+blobs = bucket.list_blobs(prefix=prefix)
+
+# List all .parquet files with full GCS paths
+parquet_files = [
+    f"gs://{bucket_name}/{blob.name}"
+    for blob in blobs
+    if blob.name.endswith(".parquet")
+]
+
+print(f"Found {len(parquet_files)} parquet files")
 
 full_data = spark.createDataFrame(
     data=[
@@ -52,22 +102,14 @@ full_data = spark.createDataFrame(
         ]
     ),
 )
+today_date = str(date.today())
 results=[]
 result = []
 result_st = []
 result_ci = []
 array2 = []
 results = []
-
-today_date = str(date.today())
-
-fs = gcsfs.GCSFileSystem()  # Initialize Google Cloud Storage filesystem
-
-folder_path = "gs://ot-team/jroldan/2025-06-25_analysis/*/"
-parquet_files = fs.glob(f"{folder_path}*.parquet")
-
 for path in parquet_files:
-    path = 'gs://' + path
     print(f"Reading {path}")
     df = spark.read.parquet(path)
     array1 = np.delete(
@@ -193,7 +235,7 @@ df.withColumn(
     "type",
     F.regexp_extract(F.col("group"), r"_(propag|original)$", 1)
 ).toPandas().to_csv(
-    f"gs://ot-team/jroldan/analysis/{today_date}_genEvidAnalysis_new_NoFileteredColocCaviar.csv"
+    f"gs://ot-team/jroldan/analysis/{today_date}_genEvidAnalysis_new.csv"
 )
 
 print("dataframe written \n Analysis finished")

@@ -1,4 +1,3 @@
-#### testing ecaviar for genevid analysis
 import time
 #from array import ArrayType
 from functions import (
@@ -30,9 +29,9 @@ spark = SparkSession.builder.getOrCreate()
 spark.conf.set(
     "spark.sql.shuffle.partitions", "400"
 )  # Default is 200, increase if needed
-#print('This time we want to have all Coloc and ecaviar >0.01')
 
-path_n='gs://open-targets-data-releases/25.06/output/'
+
+path_n='gs://open-targets-data-releases/25.03/output/'
 
 target = spark.read.parquet(f"{path_n}target/")
 
@@ -50,16 +49,10 @@ variantIndex = spark.read.parquet(f"{path_n}variant")
 
 biosample = spark.read.parquet(f"{path_n}biosample")
 
-ecaviar=spark.read.parquet(f"{path_n}colocalisation_ecaviar")
-
-all_coloc=ecaviar.unionByName(new, allowMissingColumns=True)#.filter((F.col('clpp')>=0.01) | (F.col('h4')>=0.8))
-
-print("loaded files")
-
 print("loaded files")
 
 newColoc = (
-    all_coloc.join(
+    new.join(
         credible.selectExpr(  #### studyLocusId from credible set to uncover the codified variants on left side
             "studyLocusId as leftStudyLocusId",
             "StudyId as leftStudyId",
@@ -75,7 +68,6 @@ newColoc = (
             "studyId as rightStudyId",
             "variantId as rightVariantId",
             "studyType as credibleRightStudyType",
-            "pValueExponent as qtlPValueExponent",
             'isTransQtl'
         ),
         on="rightStudyLocusId",
@@ -131,20 +123,20 @@ resolvedColoc = (
         .join(
             gwasComplete.withColumnRenamed("studyLocusId", "leftStudyLocusId"),
             on=["leftStudyLocusId", "targetId"],
-            how="right", ## has to be right to have the whole genetic evidence subset (having doe or not)
+            how="inner",
         )
-        #.join(  ### propagated using parent terms
-        #    diseases.selectExpr(
-        #        "id as diseaseId", "name", "parents", "therapeuticAreas"
-        #    ),
-        #    on="diseaseId",
-        #    how="left",
-        #)
-        #.withColumn(
-        #    "diseaseId",
-        #    F.explode_outer(F.concat(F.array(F.col("diseaseId")), F.col("parents"))),
-        #)
-        #.drop("parents", "oldDiseaseId")
+        .join(  ### propagated using parent terms
+            diseases.selectExpr(
+                "id as diseaseId", "name", "parents", "therapeuticAreas"
+            ),
+            on="diseaseId",
+            how="left",
+        )
+        .withColumn(
+            "diseaseId",
+            F.explode_outer(F.concat(F.array(F.col("diseaseId")), F.col("parents"))),
+        )
+        .drop("parents", "oldDiseaseId")
     ).withColumn(
         "colocDoE",
         F.when(
@@ -192,9 +184,9 @@ resolvedColoc = (
     # .persist()
 )
 print("loaded resolvedColloc")
-resolvedColocFiltered = resolvedColoc.filter((F.col('clpp')>=0.01) | F.col('h4').isNotNull()) #| (F.col('h4')>=0.8))
+
 datasource_filter = [
-    #"gwas_credible_set", remove so avoid potential duplicates as it will be incorporated later (DoE is done separately)
+    "gwas_credible_set",
     "gene_burden",
     "eva",
     "eva_somatic",
@@ -215,42 +207,11 @@ print("run temporary direction of effect")
 window_spec = Window.partitionBy("targetId", "diseaseId",'leftStudyId').orderBy( ### include gwas study
     F.col("pValueExponent").asc()
 )
-
-
-window_target_disease_only = Window.partitionBy("targetId", "diseaseId")
-benchmark_processed = resolvedColocFiltered.withColumn(
-    "hasboth",
-    F.size(F.collect_set("colocalisationMethod").over(window_target_disease_only)),
-)
-# Define window specs for the current iteration, including 'col_name' in partition
-# (This shuffle is still per iteration, but unavoidable if 'resolvedAgreeDrug' depends on 'col_name' values)
-current_col_window_spec_qtl = Window.partitionBy("targetId", "diseaseId").orderBy(
-    F.col("qtlPValueExponent").asc()
-)
-current_col_pvalue_order_window = Window.partitionBy("targetId", "diseaseId").orderBy(
-    F.col("colocalisationMethod").asc(), F.col("qtlPValueExponent").asc()
-)
-
-# Calculate 'resolvedAgreeDrug' for the current 'col_name'
-# This involves a shuffle per iteration.
-temp_df_with_resolved = benchmark_processed.withColumn(
-    "resolvedAgreeDrug",
-    F.when(
-        F.col("hasboth") > 1,
-        F.first(F.col("colocDoE"), ignorenulls=True).over(
-            current_col_pvalue_order_window
-        ),
-    ).otherwise(
-        F.first(F.col("colocDoE"), ignorenulls=True).over(current_col_window_spec_qtl)
-    ),
-)
-
-# qtlPValueExponent
-gwasCredibleAssoc_qtlPValue = (
-    temp_df_with_resolved.withColumn(
-        "homogenized", F.col('colocDoE')
+gwasCredibleAssoc = (
+    resolvedColoc.withColumn(
+        "homogenized", F.first("colocDoE", ignorenulls=True).over(window_spec)
     )  ## added 30.01.2025
-    # .select("targetId", "diseaseId",'leftStudyId', "homogenized")
+    .select("targetId", "diseaseId",'leftStudyId', "homogenized")
     .withColumn(
         "homogenized",
         F.when(F.col("homogenized").isNull(), F.lit("noEvaluable")).otherwise(
@@ -337,7 +298,7 @@ negativeTD = (
 )
 
 assessment_all = assessment.unionByName(
-    gwasCredibleAssoc_qtlPValue.withColumn("datasourceId", F.lit("gwas_credible_set")),
+    gwasCredibleAssoc.withColumn("datasourceId", F.lit("gwas_credible_set")),
     allowMissingColumns=True,
 )
 
@@ -416,21 +377,14 @@ analysisDatasources = []
 
 print("defining full_analysis_propagation")
 
-doe_columns=["LoF_protect", "GoF_risk", "LoF_risk", "GoF_protect"]
-diagonal_lof=['LoF_protect','GoF_risk']
-diagonal_gof=['LoF_risk','GoF_protect']
 
 def full_analysis_propagation(
-    doe_columns,assessment_all, analysisDatasources, analysis_chembl, negativeTD, diseaseTA,diagonal_lof,diagonal_gof
+    assessment_all, analysisDatasources, analysis_chembl, negativeTD, diseaseTA
 ):
-    conditions = [
-    F.when(F.col(c) == F.col("maxDoE"), F.lit(c)).otherwise(F.lit(None)) for c in doe_columns
-    ]
-    
     return (
         analysis_propagated(assessment_all, analysisDatasources)
         .join(
-            analysis_chembl.filter(F.col("coherencyDiagonal") == "coherent").selectExpr(
+            analysis_chembl.selectExpr(
                 "targetId",
                 "diseaseId",
                 "maxClinPhase",
@@ -499,13 +453,8 @@ def full_analysis_propagation(
                 )
                 .otherwise(F.lit("dispar")),
             ),
-        ).withColumn(
-            "arrayN", F.array(*[F.col(c) for c in doe_columns])
-        ).withColumn(
-            "maxDoE", F.array_max(F.col("arrayN"))
-        ).withColumn("maxDoE_names", F.array(*conditions)
-        ).withColumn("maxDoE_names", F.expr("filter(maxDoE_names, x -> x is not null)")
-        ).withColumn(
+        )
+        .withColumn(
             "Phase4",
             F.when(F.col("maxClinPhase") == 4, F.lit("yes")).otherwise(F.lit("no")),
         )
@@ -553,24 +502,6 @@ def full_analysis_propagation(
                 .otherwise(F.lit("no")),
             ).otherwise(F.lit("no")),
         )
-        .withColumn(
-            "maxDoEArrayN",
-            F.expr("aggregate(arrayN, 0, (acc, x) -> acc + IF(x = maxDoE, 1, 0))")
-        ).withColumn(
-            "NoneCellYes",
-            F.when((F.col("LoF_protect_ch").isNotNull() & (F.col('GoF_protect_ch').isNull())) & (F.array_contains(F.col("maxDoE_names"), F.lit("LoF_protect")))==True, F.lit('yes'))
-            .when((F.col("GoF_protect_ch").isNotNull() & (F.col('LoF_protect_ch').isNull())) & (F.array_contains(F.col("maxDoE_names"), F.lit("GoF_protect")))==True, F.lit('yes')
-                ).otherwise(F.lit('no'))  # If the value is null, return null # Otherwise, check if name is in array
-        ).withColumn(
-            "NdiagonalYes",
-            F.when((F.col("LoF_protect_ch").isNotNull() & (F.col('GoF_protect_ch').isNull())) & 
-                (F.size(F.array_intersect(F.col("maxDoE_names"), F.array([F.lit(x) for x in diagonal_lof]))) > 0),
-                F.lit("yes")
-            ).when((F.col("GoF_protect_ch").isNotNull() & (F.col('LoF_protect_ch').isNull())) & 
-                (F.size(F.array_intersect(F.col("maxDoE_names"), F.array([F.lit(x) for x in diagonal_gof]))) > 0),
-                F.lit("yes")
-            ).otherwise(F.lit('no'))
-        )
         # .persist()
     )
 
@@ -582,15 +513,12 @@ print("defining full analysis no propagation")
 
 
 def full_analysis_noPropagation(
-    doe_columns,assessment_all, analysisDatasources, analysis_chembl, negativeTD, diseaseTA,diagonal_lof,diagonal_gof
+    assessment_all, analysisDatasources, analysis_chembl, negativeTD, diseaseTA
 ):
-    conditions = [
-    F.when(F.col(c) == F.col("maxDoE"), F.lit(c)).otherwise(F.lit(None)) for c in doe_columns
-    ]
     return (
         analysis_nonPropagated(assessment_all, analysisDatasources)
         .join(
-            analysis_chembl.filter(F.col("coherencyDiagonal") == "coherent").selectExpr(
+            analysis_chembl.selectExpr(
                 "targetId",
                 "diseaseId",
                 "maxClinPhase",
@@ -658,12 +586,6 @@ def full_analysis_noPropagation(
                 )
                 .otherwise(F.lit("dispar")),
             ),
-        ).withColumn(
-            "arrayN", F.array(*[F.col(c) for c in doe_columns])
-        ).withColumn(
-            "maxDoE", F.array_max(F.col("arrayN"))
-        ).withColumn("maxDoE_names", F.array(*conditions)
-        ).withColumn("maxDoE_names", F.expr("filter(maxDoE_names, x -> x is not null)")
         )
         .withColumn(
             "Phase4",
@@ -712,23 +634,6 @@ def full_analysis_noPropagation(
                 .when(F.col("oneCellAgreeWithDrugs") == "dispar", F.lit("no"))
                 .otherwise(F.lit("no")),
             ).otherwise(F.lit("no")),
-        ).withColumn(
-            "maxDoEArrayN",
-            F.expr("aggregate(arrayN, 0, (acc, x) -> acc + IF(x = maxDoE, 1, 0))")
-        ).withColumn(
-            "NoneCellYes",
-            F.when(F.col("LoF_protect_ch").isNotNull() & (F.array_contains(F.col("maxDoE_names"), F.lit("LoF_protect")))==True, F.lit('yes'))
-            .when(F.col("GoF_protect_ch").isNotNull() & (F.array_contains(F.col("maxDoE_names"), F.lit("GoF_protect")))==True, F.lit('yes')
-                ).otherwise(F.lit('no'))  # If the value is null, return null # Otherwise, check if name is in array
-        ).withColumn(
-            "NdiagonalYes",
-            F.when(F.col("LoF_protect_ch").isNotNull() & 
-                (F.size(F.array_intersect(F.col("maxDoE_names"), F.array([F.lit(x) for x in diagonal_lof]))) > 0),
-                F.lit("yes")
-            ).when(F.col("GoF_protect_ch").isNotNull() & 
-                (F.size(F.array_intersect(F.col("maxDoE_names"), F.array([F.lit(x) for x in diagonal_gof]))) > 0),
-                F.lit("yes")
-            ).otherwise(F.lit('no'))
         )
         # .persist()
     )
@@ -789,17 +694,17 @@ wCgc_list = [
 ]
 
 datasource_list = [
-    #"gene_burden",
-    #"intogen",
-    #"cancer_gene_census",
-    #"eva",
-    #"eva_somatic",
+    "gene_burden",
+    "intogen",
+    "cancer_gene_census",
+    "eva",
+    "eva_somatic",
     "gwas_credible_set",
-    #"impc",
-    #"orphanet",
-    #"gene2phenotype",
-    #"WOcgc",
-    #"wCgc",
+    "impc",
+    "orphanet",
+    "gene2phenotype",
+    "WOcgc",
+    "wCgc",
     "somatic",
     "germline",
 ]
@@ -819,10 +724,10 @@ somatic_list = ["intogen", "cancer_gene_census", "eva_somatic"]
 # assessment = prueba_assessment.filter(F.col("datasourceId").isin(datasources_analysis))
 def dataset_builder(assessment_all, value, analysis_chembl, negativeTD, diseaseTA):
     nonPropagated = full_analysis_noPropagation(
-        doe_columns,assessment_all, value, analysis_chembl, negativeTD, diseaseTA,diagonal_lof,diagonal_gof
+        assessment_all, value, analysis_chembl, negativeTD, diseaseTA
     )
     propagated = full_analysis_propagation(
-        doe_columns,assessment_all, value, analysis_chembl, negativeTD, diseaseTA,diagonal_lof,diagonal_gof
+        assessment_all, value, analysis_chembl, negativeTD, diseaseTA
     )
     return (
         # Non propagation
@@ -849,64 +754,7 @@ def dataset_builder(assessment_all, value, analysis_chembl, negativeTD, diseaseT
         propagated.filter(F.col("taLabelSimple") == "Oncology"),
     )
 
-for value in datasource_list:
-    print(value)
-    if value == "germline":
-        (
-            dfs_dict[f"df_{value}_All_original"],
-            dfs_dict[f"df_{value}_Other_original"],
-            dfs_dict[f"df_{value}_OtherNull_original"],
-            dfs_dict[f"df_{value}_Oncology_original"],
-            dfs_dict_propag[f"df_{value}_All_propag"],
-            dfs_dict_propag[f"df_{value}_Other_propag"],
-            dfs_dict_propag[f"df_{value}_OtherNull_propag"],
-            dfs_dict_propag[f"df_{value}_Oncology_propag"],
-        ) = dataset_builder(
-            assessment_all,
-            germline_list,
-            analysis_chembl,
-            negativeTD,
-            diseaseTA,
-        )
 
-    elif value == "somatic":
-        (
-            dfs_dict[f"df_{value}_All_original"],
-            dfs_dict[f"df_{value}_Other_original"],
-            dfs_dict[f"df_{value}_OtherNull_original"],
-            dfs_dict[f"df_{value}_Oncology_original"],
-            dfs_dict_propag[f"df_{value}_All_propag"],
-            dfs_dict_propag[f"df_{value}_Other_propag"],
-            dfs_dict_propag[f"df_{value}_OtherNull_propag"],
-            dfs_dict_propag[f"df_{value}_Oncology_propag"],
-        ) = dataset_builder(
-            assessment_all,
-            somatic_list,
-            analysis_chembl,
-            negativeTD,
-            diseaseTA,
-        )
-
-    else:
-        (
-            dfs_dict[f"df_{value}_All_original"],
-            dfs_dict[f"df_{value}_Other_original"],
-            dfs_dict[f"df_{value}_OtherNull_original"],
-            dfs_dict[f"df_{value}_Oncology_original"],
-            dfs_dict_propag[f"df_{value}_All_propag"],
-            dfs_dict_propag[f"df_{value}_Other_propag"],
-            dfs_dict_propag[f"df_{value}_OtherNull_propag"],
-            dfs_dict_propag[f"df_{value}_Oncology_propag"]
-        ) = dataset_builder(
-            assessment_all, value, analysis_chembl, negativeTD, diseaseTA
-        )
-
-
-
-
-
-
-'''
 for value in datasource_list:
     print(value)
     if value == "WOcgc":
@@ -984,7 +832,7 @@ for value in datasource_list:
         ) = dataset_builder(
             assessment_all, value, analysis_chembl, negativeTD, diseaseTA
         )
-'''
+
 
 def comparisons_df() -> list:
     """Return list of all comparisons to be used in the analysis"""
@@ -993,8 +841,6 @@ def comparisons_df() -> list:
             ("hasGeneticEvidence", "byDatatype"),
             ("diagonalYes", "byDatatype"),
             ("oneCellYes", "byDatatype"),
-            ("NdiagonalYes", "byDatatype"),
-            ("NoneCellYes", "byDatatype"),
         ],
         schema=StructType(
             [
@@ -1014,7 +860,6 @@ def comparisons_df() -> list:
         ]
     )
     return comparisons.join(predictions, how="full").collect()
-
 
 
 result = []
@@ -1181,7 +1026,6 @@ results = []
 
 
 print("starting with non-propagated aggregations at", c)
-#for key, df in islice(dfs_dict.items(), 1): ## for debugging
 for key, df in dfs_dict.items():
     df = df.persist()
     for row in aggSetups_original:
@@ -1193,7 +1037,6 @@ print("non propagated files wroten succesfully at", c)
 
 
 print("starting with propagated aggregations at", c)
-#for key, df in islice(dfs_dict_propag.items(), 1): ## for debugging
 for key, df in dfs_dict_propag.items():
     df = df.persist()
     for row in aggSetups_original:
@@ -1202,7 +1045,6 @@ for key, df in dfs_dict_propag.items():
     print(key + " df unpersisted")
 
 print("propagated files wroten succesfully at", c)
-
 
 print("creating pandas dataframe with resulting rows")
 df_results = pd.DataFrame(
@@ -1252,10 +1094,11 @@ print("writting the dataframe")
 
 # Convert list of lists to DataFrame
 # Regular expressions
-    
+'''
 value_pattern = r"df_([^_]+)_"  # Extracts {value}
 middle_pattern = r"df_[^_]+_([^_]+)_"  # Extracts middle part (All, Other, etc.)
 suffix_pattern = r"(original|propag)$"  # Extracts suffix (original or propag)
+'''
 
 df.withColumn(
     "datasource",
@@ -1267,7 +1110,7 @@ df.withColumn(
     "type",
     F.regexp_extract(F.col("group"), r"_(propag|original)$", 1)
 ).toPandas().to_csv(
-    f"gs://ot-team/jroldan/analysis/{today_date}_genEvidAnalysis_new_NoFileteredColocCaviar.csv"
+    f"gs://ot-team/jroldan/analysis/{today_date}_genEvidAnalysis_new.csv"
 )
 
 print("dataframe written \n Analysis finished")
