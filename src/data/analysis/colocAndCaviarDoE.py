@@ -5,6 +5,8 @@ from functions import (
     spreadSheetFormatter,
     discrepancifier,
     temporary_directionOfEffect,
+    buildColocData,
+    gwasDataset,
 )
 # from stoppedTrials import terminated_td
 from DoEAssessment import directionOfEffect
@@ -30,7 +32,6 @@ spark.conf.set(
     "spark.sql.shuffle.partitions", "400"
 )  # Default is 200, increase if needed
 
-
 path_n='gs://open-targets-data-releases/25.06/output/'
 
 target = spark.read.parquet(f"{path_n}target/")
@@ -55,73 +56,15 @@ all_coloc=ecaviar.unionByName(new, allowMissingColumns=True)
 
 print("loaded files")
 
-newColoc = (
-    all_coloc.join(
-        credible.selectExpr(  #### studyLocusId from credible set to uncover the codified variants on left side
-            "studyLocusId as leftStudyLocusId",
-            "StudyId as leftStudyId",
-            "variantId as leftVariantId",
-            "studyType as credibleLeftStudyType",
-        ),
-        on="leftStudyLocusId",
-        how="left",
-    )
-    .join(
-        credible.selectExpr(  #### studyLocusId from credible set to uncover the codified variants on right side
-            "studyLocusId as rightStudyLocusId",
-            "studyId as rightStudyId",
-            "variantId as rightVariantId",
-            "studyType as credibleRightStudyType",
-            "pValueExponent as qtlPValueExponent",
-            'isTransQtl'
-        ),
-        on="rightStudyLocusId",
-        how="left",
-    )
-    .join(
-        index.selectExpr(  ### bring modulated target on right side (QTL study)
-            "studyId as rightStudyId",
-            "geneId",
-            "projectId",
-            "studyType as indexStudyType",
-            "condition",
-            "biosampleId",
-        ),
-        on="rightStudyId",
-        how="left",
-)
-    # .persist()
-)
+#### FIRST MODULE: BUILDING COLOC 
+newColoc=buildColocData(all_coloc,credible,index)
 
 print("loaded newColoc")
 
-# remove columns without content (only null values on them)
-df = evidences.filter((F.col("datasourceId") == "gwas_credible_sets"))
+### SECOND MODULE: PROCESS EVIDENCES TO AVOID EXCESS OF COLUMNS 
+gwasComplete = gwasDataset(evidences,credible)
 
-# Use an aggregation to determine non-null columns
-non_null_counts = df.select(
-    *[F.sum(F.col(col).isNotNull().cast("int")).alias(col) for col in df.columns]
-)
-
-# Collect the counts for each column
-non_null_columns = [
-    row[0] for row in non_null_counts.collect()[0].asDict().items() if row[1] > 0
-]
-
-# Select only the non-null columns
-filtered_df = df.select(*non_null_columns)  # .persist()
-
-## bring studyId, variantId, beta from Gwas and pValue
-gwasComplete = filtered_df.join(
-    credible.selectExpr(
-        "studyLocusId", "studyId", "variantId", "beta as betaGwas", "pValueExponent"
-    ),
-    on="studyLocusId",
-    how="left",
-)  # .persist()
-
-print("loaded gwasComplete")
-
+#### THIRD MODULE: INCLUDE COLOC IN THE 
 resolvedColoc = (
     (
         newColoc.withColumnRenamed("geneId", "targetId")
@@ -213,6 +156,8 @@ print("run temporary direction of effect")
 
 print("built drugApproved dataset")
 
+
+#### FOURTH MODULE BUILDING CHEMBL ASSOCIATIONS - HERE TAKE CARE WITH FILTERING STEP 
 analysis_chembl_indication = (
     discrepancifier(
         assessment.filter((F.col("datasourceId") == "chembl"))
@@ -234,30 +179,6 @@ analysis_chembl_indication = (
     .withColumnRenamed("LoF_protect", "drugLoF_protect")
     # .persist()
 )
-
-chemblAssoc = (
-    discrepancifier(
-        assessment.filter(
-            (F.col("datasourceId") == "chembl")
-            & (F.col("homogenized") != "noEvaluable")
-        )
-        .withColumn(
-            "maxClinPhase",
-            F.max("clinicalPhase").over(Window.partitionBy("targetId", "diseaseId")),
-        )
-        .groupBy("targetId", "diseaseId", "maxClinPhase")
-        .pivot("homogenized")
-        .count()
-    )
-    #.filter(F.col("coherencyDiagonal") == "coherent")
-    .drop(
-        "coherencyDiagonal", "coherencyOneCell", "noEvaluable", "GoF_risk", "LoF_risk"
-    )
-    .withColumnRenamed("GoF_protect", "drugGoF_protect")
-    .withColumnRenamed("LoF_protect", "drugLoF_protect")
-)
-
-print("built chemblAssoc dataset")
 
 ####2 Define agregation function
 import pandas as pd
@@ -498,6 +419,8 @@ print("looping for variables_study")
 # HAVE COLOC + ECAVIAR >= 0.01
 # HAVE COLOC >= 0.8 + ECAVIAR >= 0.01
 # RIGHT JOING WITH CHEMBL 
+
+### FIFTH MODULE: BUILDING BENCHMARK OF THE DATASET TO EXTRACT EHE ANALYSIS 
 
 resolvedColocFiltered = resolvedColoc.filter((F.col('clpp')>=0.01) | (F.col('h4')>=0.8))
 benchmark = (
