@@ -2,11 +2,11 @@
 
 # Define a description for the analysis
 #description="save matrices with coincidences and discrepancies, latest"
-description="Filtered coloc with fix for N drugs and Others included. 4 Phases!"
+description="Coloc and Caviar benchmark joint projects. Just Phase4"
 
 # Define an abbreviation for the file name (simplified, no special characters)
 #abbreviation="matricesDiscr"
-abbreviation="filteredColocAndCaviar"
+abbreviation="jointProjects"
 
 # Define the current date for the log file
 current_date=$(date '+%Y-%m-%d')
@@ -14,7 +14,7 @@ current_date=$(date '+%Y-%m-%d')
 
 # Define the Python script to run
 #python_script="saveMatrices.py"
-python_script="colocAndCaviarDoE.py"
+python_script="colocAndCaviarDoE_JointProjectsId.py"
 
 # Define the log file name
 log_filename="${current_date}_analysis_${abbreviation}.log"

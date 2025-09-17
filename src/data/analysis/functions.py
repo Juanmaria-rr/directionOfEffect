@@ -1312,3 +1312,68 @@ def build_gwasResolvedColoc_noPropag(path):
         .persist()
     )
     return gwasResolvedColoc_noPropag,gwasComplete
+
+def buildColocData(all_coloc,credible,index):
+    return (
+    all_coloc.join(
+        credible.selectExpr(  #### studyLocusId from credible set to uncover the codified variants on left side
+            "studyLocusId as leftStudyLocusId",
+            "StudyId as leftStudyId",
+            "variantId as leftVariantId",
+            "studyType as credibleLeftStudyType",
+        ),
+        on="leftStudyLocusId",
+        how="left",
+    )
+    .join(
+        credible.selectExpr(  #### studyLocusId from credible set to uncover the codified variants on right side
+            "studyLocusId as rightStudyLocusId",
+            "studyId as rightStudyId",
+            "variantId as rightVariantId",
+            "studyType as credibleRightStudyType",
+            "pValueExponent as qtlPValueExponent",
+            'isTransQtl'
+        ),
+        on="rightStudyLocusId",
+        how="left",
+    )
+    .join(
+        index.selectExpr(  ### bring modulated target on right side (QTL study)
+            "studyId as rightStudyId",
+            "geneId",
+            "projectId",
+            "studyType as indexStudyType",
+            "condition",
+            "biosampleId",
+        ),
+        on="rightStudyId",
+        how="left",
+    ))
+
+def gwasDataset(evidences,credible):
+    # remove columns without content (only null values on them)
+    df = evidences.filter((F.col("datasourceId") == "gwas_credible_sets"))
+
+    # Use an aggregation to determine non-null columns
+    non_null_counts = df.select(
+        *[F.sum(F.col(col).isNotNull().cast("int")).alias(col) for col in df.columns]
+    )
+
+    # Collect the counts for each column
+    non_null_columns = [
+        row[0] for row in non_null_counts.collect()[0].asDict().items() if row[1] > 0
+    ]
+
+    # Select only the non-null columns
+    filtered_df = df.select(*non_null_columns)  # .persist()
+
+    ## bring studyId, variantId, beta from Gwas and pValue
+    gwasComplete = filtered_df.join(
+        credible.selectExpr(
+            "studyLocusId", "studyId", "variantId", "beta as betaGwas", "pValueExponent"
+        ),
+        on="studyLocusId",
+        how="left",
+    )
+    print("loaded gwasComplete")
+    return gwasComplete
