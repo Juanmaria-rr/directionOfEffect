@@ -7,6 +7,7 @@ from functions import (
     temporary_directionOfEffect,
     buildColocData,
     gwasDataset,
+    build_resolved_coloc,
 )
 # from stoppedTrials import terminated_td
 from DoEAssessment import directionOfEffect
@@ -26,72 +27,19 @@ from pyspark.sql.types import (
 )
 import pandas as pd
 from functools import reduce
-
-# --- YARN and Spark Configuration Parameters ---
-# These parameters directly influence how Spark requests resources from YARN
-# and how memory is managed within your Spark application.
-
-# 1. spark.driver.memory: Memory allocated to the Spark driver program.
-#    The driver is responsible for coordinating tasks, scheduling, and collecting
-#    results. If you're doing operations like 'collect()' on large datasets,
-#    or working with large broadcast variables, increase this.
-#    General Guideline: Start with 2g-4g for interactive use, up to 8g-16g
-#    for very large metadata or small result collection.
-driver_memory = "4g"
-
-# 2. spark.executor.memory: Memory allocated to each Spark executor JVM.
-#    Executors are the worker processes that perform the actual data processing.
-#    This is *the most critical* setting for memory-related YARN issues.
-#    If your tasks are failing due to OOM errors, increase this significantly.
-#    General Guideline: Depends on your node size and data. Common values are
-#    4g, 8g, 16g, or even more. Ensure it doesn't exceed YARN's max container size.
-executor_memory = "8g"
-
-# 3. spark.executor.cores: Number of virtual cores (CPU) allocated to each executor.
-#    More cores means an executor can run more tasks concurrently.
-#    General Guideline: Typically 2-5 cores per executor. Avoid 1 core (poor parallelism)
-#    and too many cores (can lead to fewer executors and memory contention).
-executor_cores = "4"
-
-# 4. spark.executor.instances: The total number of executors to launch.
-#    This determines the overall parallelism of your application across the cluster.
-#    General Guideline: Calculate based on your total cluster resources.
-#    (Total available cores on cluster / executor_cores).
-#    Start with a reasonable number, e.g., 5-20, and scale up.
-num_executors = "10" # Example: 10 executors
-
-# 5. spark.yarn.executor.memoryOverhead: Additional memory for the YARN container
-#    beyond the JVM heap (spark.executor.memory). This includes off-heap memory,
-#    PySpark's Python process memory, thread stacks, etc.
-#    Crucial for PySpark! If this is too low, YARN can kill your containers
-#    even if your Java heap (executor_memory) is fine.
-#    General Guideline: 10-20% of spark.executor.memory, or a fixed amount like 1g-2g.
-#    For PySpark, it's often safer to allocate more.
-executor_memory_overhead = "2g" # For an 8g executor, 2g overhead is reasonable (25%)
-
-# 6. spark.sql.shuffle.partitions: The number of partitions used for shuffling data
-#    during operations like `groupBy`, `join`, `agg`, `sort`.
-#    If this is too low: You can get OOM errors if partitions are too large,
-#    or task failures due to data skew.
-#    If this is too high: Creates many small tasks, leading to overhead.
-#    General Guideline: A common heuristic is 2-4 times the total number of CPU cores
-#    available in your application (executor_cores * num_executors).
-#    For your current setup (4 cores * 10 executors = 40 cores), 400 is very high.
-#    Consider (num_executors * executor_cores * 2) as a starting point.
-#    Example: 10 executors * 4 cores/executor = 40 total cores. 40 * 2 = 80 partitions.
-#    However, if you have *very* large datasets or significant data skew, 400 might be okay,
-#    but it's usually better to start lower and increase if you see skew/large partition processing.
-shuffle_partitions = "150" # Adjust based on data size and parallelism
-
-# 7. spark.default.parallelism: This parameter is important for RDD operations (less so for DataFrames,
-#    where spark.sql.shuffle.partitions is more relevant for shuffles). It suggests the default
-#    number of partitions for RDDs created from scratch, and also influences the number of tasks.
-#    It's often set to match or be a multiple of the total number of cores.
-default_parallelism = str(int(executor_cores) * int(num_executors) * 2) # A common heuristic
-
 # --- Build the SparkSession ---
 # Use the .config() method to set these parameters before calling .getOrCreate()
 # This ensures Spark requests the correct resources from YARN at the start.
+driver_memory = "24g"                 # plenty for planning & small collects
+executor_cores = 4                    # sweet spot for GC + Python workers
+num_executors  = 12                   # 12 * 4 = 48 cores for executors; ~16 cores left for driver/OS
+executor_memory = "32g"               # per executor heap
+executor_memory_overhead = "8g"       # ~20% overhead for PySpark/Arrow/off-heap
+# Totals: (32+8) * 12 = 480 GB executors + 24 GB driver ≈ 504 GB (adjust down if your hard cap is <500 GB)
+# If you must stay strictly ≤ 500 GB, use executor_memory="30g", overhead="6g"  → (36 * 12) + 24 = 456 + 24 = 480 GB
+
+shuffle_partitions   = 192            # ≈ 2–4× total cores (48) → start with 192
+default_parallelism  = 192
 
 spark = SparkSession.builder \
     .appName("MyOptimizedPySparkApp") \
@@ -115,6 +63,16 @@ print(f"  spark.sql.shuffle.partitions: {spark.conf.get('spark.sql.shuffle.parti
 print(f"  spark.default.parallelism: {spark.conf.get('spark.default.parallelism')}")
 print(f"Spark UI available at: {spark.sparkContext.uiWebUrl}")
 
+print(f"SparkSession created successfully with the following configurations:")
+print(f"  spark.driver.memory: {spark.conf.get('spark.driver.memory')}")
+print(f"  spark.executor.memory: {spark.conf.get('spark.executor.memory')}")
+print(f"  spark.executor.cores: {spark.conf.get('spark.executor.cores')}")
+print(f"  spark.executor.instances: {spark.conf.get('spark.executor.instances')}")
+print(f"  spark.yarn.executor.memoryOverhead: {spark.conf.get('spark.yarn.executor.memoryOverhead')}")
+print(f"  spark.sql.shuffle.partitions: {spark.conf.get('spark.sql.shuffle.partitions')}")
+print(f"  spark.default.parallelism: {spark.conf.get('spark.default.parallelism')}")
+print(f"Spark UI available at: {spark.sparkContext.uiWebUrl}")
+
 # --- Your PySpark Code Here ---
 # Now you can proceed with your data loading and processing.
 # Example:
@@ -125,7 +83,7 @@ print(f"Spark UI available at: {spark.sparkContext.uiWebUrl}")
 # Remember to stop the SparkSession when you are done
 # spark.stop()
 
-path_n='gs://open-targets-data-releases/25.06/output/'
+path_n='gs://open-targets-data-releases/25.09/output/'
 
 target = spark.read.parquet(f"{path_n}target/")
 
@@ -147,6 +105,9 @@ ecaviar=spark.read.parquet(f"{path_n}colocalisation_ecaviar")
 
 all_coloc=ecaviar.unionByName(new, allowMissingColumns=True)
 
+mecact_path = f"{path_n}drug_mechanism_of_action/" #  mechanismOfAction == old version
+
+
 print("loaded files")
 
 #### FIRST MODULE: BUILDING COLOC 
@@ -157,73 +118,10 @@ print("loaded newColoc")
 ### SECOND MODULE: PROCESS EVIDENCES TO AVOID EXCESS OF COLUMNS 
 gwasComplete = gwasDataset(evidences,credible)
 
+print('gwasComplete loaded')
 #### THIRD MODULE: INCLUDE COLOC IN THE 
-resolvedColoc = (
-    (
-        newColoc.withColumnRenamed("geneId", "targetId")
-        .join(
-            gwasComplete.withColumnRenamed("studyLocusId", "leftStudyLocusId"),
-            on=["leftStudyLocusId", "targetId"],
-            how="inner",
-        )
-        .join(  ### propagated using parent terms
-            diseases.selectExpr(
-                "id as diseaseId", "name", "parents", "therapeuticAreas"
-            ),
-            on="diseaseId",
-            how="left",
-        )
-        .withColumn(
-            "diseaseId",
-            F.explode_outer(F.concat(F.array(F.col("diseaseId")), F.col("parents"))),
-        )
-        .drop("parents", "oldDiseaseId")
-    ).withColumn(
-        "colocDoE",
-        F.when(
-            F.col("rightStudyType").isin(
-                ["eqtl", "pqtl", "tuqtl", "sceqtl", "sctuqtl"]
-            ),
-            F.when(
-                (F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") > 0),
-                F.lit("GoF_risk"),
-            )
-            .when(
-                (F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") < 0),
-                F.lit("LoF_risk"),
-            )
-            .when(
-                (F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") > 0),
-                F.lit("LoF_protect"),
-            )
-            .when(
-                (F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") < 0),
-                F.lit("GoF_protect"),
-            ),
-        ).when(
-            F.col("rightStudyType").isin(
-                ["sqtl", "scsqtl"]
-            ),  ### opposite directionality than sqtl
-            F.when(
-                (F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") > 0),
-                F.lit("LoF_risk"),
-            )
-            .when(
-                (F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") < 0),
-                F.lit("GoF_risk"),
-            )
-            .when(
-                (F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") > 0),
-                F.lit("GoF_protect"),
-            )
-            .when(
-                (F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") < 0),
-                F.lit("LoF_protect"),
-            ),
-        ),
-    )
-    # .persist()
-)
+resolvedColoc=build_resolved_coloc(newColoc, gwasComplete, diseases).withColumn('hasGenetics', F.lit('yes'))
+
 print("loaded resolvedColloc")
 
 datasource_filter = [
@@ -246,21 +144,87 @@ assessment, evidences, actionType, oncolabel = temporary_directionOfEffect(
 
 print("run temporary direction of effect")
 
+negativeTD = (
+    evidences.filter(F.col("datasourceId") == "chembl")
+    .select("targetId", "diseaseId", "studyStopReason", "studyStopReasonCategories")
+    .filter(F.array_contains(F.col("studyStopReasonCategories"), "Negative"))
+    .groupBy("targetId", "diseaseId")
+    .count()
+    .withColumn("stopReason", F.lit("Negative"))
+    .drop("count")
+)
 
-print("built drugApproved dataset")
+print("built negativeTD dataset")
 
 
-#### FOURTH MODULE BUILDING CHEMBL ASSOCIATIONS - HERE TAKE CARE WITH FILTERING STEP 
+#### new part with chatgpt -- TEST
+
+## QUESTIONS TO ANSWER:
+# HAVE ECAVIAR >=0.8
+# HAVE COLOC 
+# HAVE COLOC >= 0.8
+# HAVE COLOC + ECAVIAR >= 0.01
+# HAVE COLOC >= 0.8 + ECAVIAR >= 0.01
+# RIGHT JOING WITH CHEMBL 
+
+### FIFTH MODULE: BUILDING BENCHMARK OF THE DATASET TO EXTRACT EHE ANALYSIS 
+
+resolvedColocFiltered = resolvedColoc.filter((F.col('clpp')>=0.01) | (F.col('h4')>=0.8))
+
+### drug mechanism of action
+inhibitors = [
+    "RNAI INHIBITOR",
+    "NEGATIVE MODULATOR",
+    "NEGATIVE ALLOSTERIC MODULATOR",
+    "ANTAGONIST",
+    "ANTISENSE INHIBITOR",
+    "BLOCKER",
+    "INHIBITOR",
+    "DEGRADER",
+    "INVERSE AGONIST",
+    "ALLOSTERIC ANTAGONIST",
+    "DISRUPTING AGENT",
+]
+
+activators = [
+    "PARTIAL AGONIST",
+    "ACTIVATOR",
+    "POSITIVE ALLOSTERIC MODULATOR",
+    "POSITIVE MODULATOR",
+    "AGONIST",
+    "SEQUESTERING AGENT",  ## lost at 31.01.2025
+    "STABILISER",
+    # "EXOGENOUS GENE", ## added 24.06.2025
+    # "EXOGENOUS PROTEIN" ## added 24.06.2025
+]
+mecact = spark.read.parquet(mecact_path)
+actionType = (
+        mecact.select(
+            F.explode_outer("chemblIds").alias("drugId"),
+            "actionType",
+            "mechanismOfAction",
+            "targets",
+        )
+        .select(
+            F.explode_outer("targets").alias("targetId"),
+            "drugId",
+            "actionType",
+            "mechanismOfAction",
+        )
+        .groupBy("targetId", "drugId")
+        .agg(F.collect_set("actionType").alias("actionType2"))
+    ).withColumn('nMoA', F.size(F.col('actionType2')))
+
 analysis_chembl_indication = (
     discrepancifier(
-        assessment.filter((F.col("datasourceId") == "chembl"))
+        assessment.filter((F.col("datasourceId") == "chembl")).join(actionType, on=['targetId','drugId'], how='left')
         .withColumn(
             "maxClinPhase",
             F.max(F.col("clinicalPhase")).over(
                 Window.partitionBy("targetId", "diseaseId")
             ),
         )
-        .groupBy("targetId", "diseaseId", "maxClinPhase")
+        .groupBy("targetId", "diseaseId", "maxClinPhase",'actionType2')
         .pivot("homogenized")
         .agg(F.count("targetId"))
     )
@@ -270,8 +234,22 @@ analysis_chembl_indication = (
     )
     .withColumnRenamed("GoF_protect", "drugGoF_protect")
     .withColumnRenamed("LoF_protect", "drugLoF_protect")
-    # .persist()
 )
+
+print("built drugApproved dataset")
+benchmark = (
+        resolvedColocFiltered.filter( ## .filter(F.col("betaGwas") < 0)
+        F.col("name") != "COVID-19"
+    )
+        .join(  ### select just GWAS giving protection
+            analysis_chembl_indication, on=["targetId", "diseaseId"], how="right"  ### RIGHT SIDE
+        )
+).join(biosample.select("biosampleId", "biosampleName"), on="biosampleId", how="left")
+
+print("built benchmark")
+
+
+#### HERE THE CODE FOR THE ANALYSIS
 
 ####2 Define agregation function
 import pandas as pd
@@ -284,9 +262,8 @@ from pyspark.sql.types import *
 def convertTuple(tup):
     st = ",".join(map(str, tup))
     return st
-
-
 #####3 run in a function
+
 def aggregations_original(
     df,
     data,
@@ -486,172 +463,13 @@ print("created full_data and lists")
 
 print("loaded rightTissue dataset")
 
-negativeTD = (
-    evidences.filter(F.col("datasourceId") == "chembl")
-    .select("targetId", "diseaseId", "studyStopReason", "studyStopReasonCategories")
-    .filter(F.array_contains(F.col("studyStopReasonCategories"), "Negative"))
-    .groupBy("targetId", "diseaseId")
-    .count()
-    .withColumn("stopReason", F.lit("Negative"))
-    .drop("count")
-)
-
-print("built negativeTD dataset")
-
-print("built bench2 dataset")
-
-###### cut from here
-print("looping for variables_study")
-
-#### new part with chatgpt -- TEST
-
-## QUESTIONS TO ANSWER:
-# HAVE ECAVIAR >=0.8
-# HAVE COLOC 
-# HAVE COLOC >= 0.8
-# HAVE COLOC + ECAVIAR >= 0.01
-# HAVE COLOC >= 0.8 + ECAVIAR >= 0.01
-# RIGHT JOING WITH CHEMBL 
-
-### FIFTH MODULE: BUILDING BENCHMARK OF THE DATASET TO EXTRACT EHE ANALYSIS 
-
-resolvedColocFiltered = resolvedColoc.filter((F.col('clpp')>=0.01) | (F.col('h4')>=0.8))
-benchmark = (
-    (
-        resolvedColocFiltered.filter( ## .filter(F.col("betaGwas") < 0)
-        F.col("name") != "COVID-19"
-    )
-        .join(  ### select just GWAS giving protection
-            analysis_chembl_indication, on=["targetId", "diseaseId"], how="right"  ### RIGHT SIDE
-        )
-        .withColumn(
-            "AgreeDrug",
-            F.when(
-                (F.col("drugGoF_protect").isNotNull())
-                & (F.col("colocDoE") == "GoF_protect"),
-                F.lit("yes"),
-            )
-            .when(
-                (F.col("drugLoF_protect").isNotNull())
-                & (F.col("colocDoE") == "LoF_protect"),
-                F.lit("yes"),
-            )
-            .otherwise(F.lit("no")),
-        )
-    )  #### remove COVID-19 associations
-).join(biosample.select("biosampleId", "biosampleName"), on="biosampleId", how="left")
-
-
-### drug mechanism of action
-mecact_path = f"{path_n}drug_mechanism_of_action/" #  mechanismOfAction == old version
-mecact = spark.read.parquet(mecact_path)
-
-inhibitors = [
-    "RNAI INHIBITOR",
-    "NEGATIVE MODULATOR",
-    "NEGATIVE ALLOSTERIC MODULATOR",
-    "ANTAGONIST",
-    "ANTISENSE INHIBITOR",
-    "BLOCKER",
-    "INHIBITOR",
-    "DEGRADER",
-    "INVERSE AGONIST",
-    "ALLOSTERIC ANTAGONIST",
-    "DISRUPTING AGENT",
-]
-
-activators = [
-    "PARTIAL AGONIST",
-    "ACTIVATOR",
-    "POSITIVE ALLOSTERIC MODULATOR",
-    "POSITIVE MODULATOR",
-    "AGONIST",
-    "SEQUESTERING AGENT",  ## lost at 31.01.2025
-    "STABILISER",
-    # "EXOGENOUS GENE", ## added 24.06.2025
-    # "EXOGENOUS PROTEIN" ## added 24.06.2025
-]
-
-
-actionType = (
-        mecact.select(
-            F.explode_outer("chemblIds").alias("drugId"),
-            "actionType",
-            "mechanismOfAction",
-            "targets",
-        )
-        .select(
-            F.explode_outer("targets").alias("targetId"),
-            "drugId",
-            "actionType",
-            "mechanismOfAction",
-        )
-        .groupBy("targetId", "drugId")
-        .agg(F.collect_set("actionType").alias("actionType2"))
-    ).withColumn('nMoA', F.size(F.col('actionType2')))
-
-analysis_chembl_indication = (
-    discrepancifier(
-        assessment.filter((F.col("datasourceId") == "chembl")).join(actionType, on=['targetId','drugId'], how='left')
-        .withColumn(
-            "maxClinPhase",
-            F.max(F.col("clinicalPhase")).over(
-                Window.partitionBy("targetId", "diseaseId")
-            ),
-        )
-        .groupBy("targetId", "diseaseId", "maxClinPhase",'actionType2')
-        .pivot("homogenized")
-        .agg(F.count("targetId"))
-    )
-    #.filter(F.col("coherencyDiagonal") == "coherent")
-    .drop(
-        "coherencyDiagonal", "coherencyOneCell", "noEvaluable", "GoF_risk", "LoF_risk"
-    )
-    .withColumnRenamed("GoF_protect", "drugGoF_protect")
-    .withColumnRenamed("LoF_protect", "drugLoF_protect")
-)
-
-benchmark = (
-    (
-        resolvedColocFiltered.filter( ## .filter(F.col("betaGwas") < 0)
-        F.col("name") != "COVID-19"
-    )
-        .join(  ### select just GWAS giving protection
-            analysis_chembl_indication, on=["targetId", "diseaseId"], how="right"  ### RIGHT SIDE
-        )
-        .withColumn(
-            "AgreeDrug",
-            F.when(
-                (F.col("drugGoF_protect").isNotNull())
-                & (F.col("colocDoE") == "GoF_protect"),
-                F.lit("yes"),
-            )
-            .when(
-                (F.col("drugLoF_protect").isNotNull())
-                & (F.col("colocDoE") == "LoF_protect"),
-                F.lit("yes"),
-            )
-            .otherwise(F.lit("no")),
-        )
-    )  #### remove COVID-19 associations
-).join(biosample.select("biosampleId", "biosampleName"), on="biosampleId", how="left")
-
-negativeTD = (
-    evidences.filter(F.col("datasourceId") == "chembl")
-    .select("targetId", "diseaseId", "studyStopReason", "studyStopReasonCategories")
-    .filter(F.array_contains(F.col("studyStopReasonCategories"), "Negative"))
-    .groupBy("targetId", "diseaseId")
-    .count()
-    .withColumn("stopReason", F.lit("Negative"))
-    .drop("count")
-)
-
 ### create disdic dictionary
 disdic={}
 
 # --- Configuration for your iterative pivoting ---
 group_by_columns = ['targetId', 'diseaseId','phase4Clean','phase3Clean','phase2Clean','phase1Clean','PhaseT']
 columns_to_pivot_on = ['actionType2', 'biosampleName', 'projectId', 'rightStudyType','colocalisationMethod']
+#columns_to_pivot_on = ['actionType2']
 columns_to_aggregate = ['NoneCellYes', 'NdiagonalYes','hasGenetics'] # The values you want to collect in the pivoted cells
 all_pivoted_dfs = {}
 
@@ -664,12 +482,12 @@ conditions = [
     ]
 
 # --- Nested Loops for Dynamic Pivoting ---
-for agg_col_name in columns_to_aggregate:
-    for pivot_col_name in columns_to_pivot_on:
+for pivot_col_name in columns_to_pivot_on:
+    for agg_col_name in columns_to_aggregate:
         print(f"\n--- Creating DataFrame for Aggregation: '{agg_col_name}' and Pivot: '{pivot_col_name}' ---")
         current_col_pvalue_order_window = Window.partitionBy("targetId", "diseaseId", "maxClinPhase", pivot_col_name).orderBy(F.col('colocalisationMethod').asc(), F.col("qtlPValueExponent").asc())
         test2=discrepancifier(benchmark.withColumn('actionType2', F.concat_ws(",", F.col("actionType2"))).withColumn('qtlColocDoE',F.first('colocDoE').over(current_col_pvalue_order_window)).groupBy(
-        "targetId", "diseaseId", "maxClinPhase", "drugLoF_protect", "drugGoF_protect",pivot_col_name)
+        "targetId", "diseaseId", "hasGenetics","maxClinPhase", "drugLoF_protect", "drugGoF_protect",pivot_col_name)
         .pivot("colocDoE")
         .count()
         .withColumnRenamed('drugLoF_protect', 'LoF_protect_ch')
@@ -731,9 +549,6 @@ for agg_col_name in columns_to_aggregate:
         F.when(
             (F.col("maxClinPhase") >= 1) & (F.col("PhaseT") == "no"), F.lit("yes")
         ).otherwise(F.lit("no")),
-    ).withColumn(
-        "hasGenetics",
-        F.when(F.col("coherencyDiagonal") != "noEvid", F.lit("yes")).otherwise(F.lit("no")),
     )
         # 1. Get distinct values for the pivot column (essential for pivot())
         # This brings a small amount of data to the driver, but is necessary for the pivot schema.
@@ -791,7 +606,6 @@ for agg_col_name in columns_to_aggregate:
 print("\n--- All generated DataFrames are stored in 'all_pivoted_dfs' dictionary ---")
 print("Keys available:", all_pivoted_dfs.keys())
 
-
 result = []
 result_st = []
 result_ci = []
@@ -799,13 +613,19 @@ array2 = []
 listado = []
 result_all = []
 today_date = str(date.today())
+mechanisms=inhibitors+activators #### just for actionTypes included in the benchmark 
+allAct=mecact.select('actionType').rdd.map(lambda r: r[0]).collect()
+intersection = [x for x in mechanisms if x in allAct]
+
 for key,df in all_pivoted_dfs.items():
 
     print(f'working with {key}')
     parts = key.split('_by_') ### take the part of key belonging to column name
     column_name = parts[1] ### take the last part which is column name
     all_pivoted_dfs[key].persist()
-    unique_values = all_pivoted_dfs[key].drop('null').columns[7:]
+    #unique_values = all_pivoted_dfs[key].drop('null').columns[7:]
+    
+    unique_values=intersection
     filtered_unique_values = [x for x in unique_values if x is not None and x != 'null']
     print('There are ', len(filtered_unique_values), 'columns to analyse with phases')
     rows = comparisons_df_iterative(filtered_unique_values)
@@ -865,7 +685,13 @@ df = (
         F.regexp_extract(
             F.col("comparison"), regex_pattern, 0
         ),  # Extract the pattern itself
-    )
+    ).withColumn(
+    "folder",
+    F.regexp_extract(F.col("path"), r"analysis/([^/]+)/", 1)
+).withColumn(
+    "suffix2",
+    F.regexp_extract(F.col("folder"), r"df_pivot_(.+?)_by_", 1)
+).select('folder','suffix2').show(truncate=False)
 )
 
 ### annotate projectId, tissue, qtl type and doe type:
@@ -878,6 +704,7 @@ mapping_expr=create_map([F.lit(x) for x in chain(*disdic.items())])
 df_annot=df.withColumn('annotation',mapping_expr.getItem(F.col('prefix')))
 
 df_annot.toPandas().to_csv(
+    
     f"gs://ot-team/jroldan/analysis/{today_date}_credibleSetColocDoEanalysis_filteredColocAndCaviarWithOthers4phasesTrue.csv"
 )
 
