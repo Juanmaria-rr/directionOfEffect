@@ -1377,3 +1377,62 @@ def gwasDataset(evidences,credible):
     )
     print("loaded gwasComplete")
     return gwasComplete
+
+
+# utils_resolvedcoloc.py
+
+import pyspark.sql.functions as F
+
+def build_resolved_coloc(newColoc, gwasComplete, diseases):
+    """
+    Build the resolvedColoc DataFrame with propagated disease parents
+    and computed colocDoE.
+
+    Args:
+        newColoc (DataFrame): Base coloc dataset
+        gwasComplete (DataFrame): GWAS dataset with study loci
+        diseases (DataFrame): Disease metadata
+
+    Returns:
+        DataFrame: resolvedColoc with colocDoE and propagated diseases
+    """
+
+    resolvedColoc = (
+        (
+            newColoc.withColumnRenamed("geneId", "targetId")
+            .join(
+                gwasComplete.withColumnRenamed("studyLocusId", "leftStudyLocusId"),
+                on=["leftStudyLocusId", "targetId"],
+                how="right",  # NOTE: this is right as per your requirement
+            )
+            .join(
+                diseases.selectExpr(
+                    "id as diseaseId", "name", "parents", "therapeuticAreas"
+                ),
+                on="diseaseId",
+                how="left",
+            )
+            .withColumn(
+                "diseaseId",
+                F.explode_outer(F.concat(F.array(F.col("diseaseId")), F.col("parents"))),
+            )
+            .drop("parents", "oldDiseaseId")
+        ).withColumn(
+            "colocDoE",
+            F.when(
+                F.col("rightStudyType").isin(["eqtl", "pqtl", "tuqtl", "sceqtl", "sctuqtl"]),
+                F.when((F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") > 0), F.lit("GoF_risk"))
+                 .when((F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") < 0), F.lit("LoF_risk"))
+                 .when((F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") > 0), F.lit("LoF_protect"))
+                 .when((F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") < 0), F.lit("GoF_protect"))
+            ).when(
+                F.col("rightStudyType").isin(["sqtl", "scsqtl"]),  # opposite directionality than sqtl
+                F.when((F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") > 0), F.lit("LoF_risk"))
+                 .when((F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") < 0), F.lit("GoF_risk"))
+                 .when((F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") > 0), F.lit("GoF_protect"))
+                 .when((F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") < 0), F.lit("LoF_protect"))
+            ),
+        )
+    )
+
+    return resolvedColoc
