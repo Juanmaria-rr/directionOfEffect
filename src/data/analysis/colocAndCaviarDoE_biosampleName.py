@@ -651,7 +651,7 @@ for key,df in all_pivoted_dfs.items():
     column_name = parts[1] ### take the last part which is column name
     all_pivoted_dfs[key].persist()
     #unique_values = all_pivoted_dfs[key].drop('null').columns[7:]
-    unique_values = all_pivoted_dfs[key].columns[:9] ### just the interesting columns for us 
+    unique_values = all_pivoted_dfs[key].columns[9:] ### just the interesting columns for us 
     filtered_unique_values = [x for x in unique_values if x is not None and x != 'null']
     print('There are ', len(filtered_unique_values), 'columns to analyse with phases')
     rows = comparisons_df_iterative(filtered_unique_values)
