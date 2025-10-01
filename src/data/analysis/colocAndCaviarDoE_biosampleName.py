@@ -611,7 +611,7 @@ for pivot_col_name in columns_to_pivot_on:
             new_col_name = f"tissueRelevant_{col}"
             all_pivoted_dfs[df_key] = all_pivoted_dfs[df_key].withColumn(
                 new_col_name,
-                F.when((F.col("Relevant") == "yes") & (F.col(col) == "yes"), F.lit("yes"))
+                F.when((F.col("Relevant") == "Yes") & (F.col(col) == "yes"), F.lit("yes"))
                 .otherwise(F.lit("no"))
             )
 
@@ -691,8 +691,7 @@ import re
 # Define the list of patterns to search for
 patterns = [
     "_only",
-
-    "_isRightTissueSignalAgreed",
+    "tissueRelevant_",
 ]
 # Create a regex pattern to match any of the substrings
 regex_pattern = "(" + "|".join(map(re.escape, patterns)) + ")"
