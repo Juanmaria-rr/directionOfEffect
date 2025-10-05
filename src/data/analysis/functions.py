@@ -1436,3 +1436,47 @@ def build_resolved_coloc(newColoc, gwasComplete, diseases):
     )
 
     return resolvedColoc
+
+
+
+def build_resolved_coloc_noPropag(newColoc, gwasComplete):
+    """
+    Build the resolvedColoc DataFrame with propagated disease parents
+    and computed colocDoE.
+
+    Args:
+        newColoc (DataFrame): Base coloc dataset
+        gwasComplete (DataFrame): GWAS dataset with study loci
+        diseases (DataFrame): Disease metadata
+
+    Returns:
+        DataFrame: resolvedColoc with colocDoE and no propagation
+    """
+
+    resolvedColoc = (
+        (
+            newColoc.withColumnRenamed("geneId", "targetId")
+            .join(
+                gwasComplete.withColumnRenamed("studyLocusId", "leftStudyLocusId"),
+                on=["leftStudyLocusId", "targetId"],
+                how="right",  # NOTE: this is right as per your requirement
+            )
+        ).withColumn(
+            "colocDoE",
+            F.when(
+                F.col("rightStudyType").isin(["eqtl", "pqtl", "tuqtl", "sceqtl", "sctuqtl"]),
+                F.when((F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") > 0), F.lit("GoF_risk"))
+                 .when((F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") < 0), F.lit("LoF_risk"))
+                 .when((F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") > 0), F.lit("LoF_protect"))
+                 .when((F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") < 0), F.lit("GoF_protect"))
+            ).when(
+                F.col("rightStudyType").isin(["sqtl", "scsqtl"]),  # opposite directionality than sqtl
+                F.when((F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") > 0), F.lit("LoF_risk"))
+                 .when((F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") < 0), F.lit("GoF_risk"))
+                 .when((F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") > 0), F.lit("GoF_protect"))
+                 .when((F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") < 0), F.lit("LoF_protect"))
+            ),
+        )
+    )
+
+    return resolvedColoc
