@@ -1,38 +1,90 @@
-#### testing ecaviar for genevid analysis
 import time
-#from array import ArrayType
+from array import ArrayType
 from functions import (
     relative_success,
     spreadSheetFormatter,
     discrepancifier,
     temporary_directionOfEffect,
+    buildColocData,
+    gwasDataset,
+    build_resolved_coloc,
+    build_resolved_coloc_noPropag
 )
 # from stoppedTrials import terminated_td
 from DoEAssessment import directionOfEffect
 # from membraneTargets import target_membrane
 from pyspark.sql import SparkSession, Window
 import pyspark.sql.functions as F
-#from itertools import islice
 from datetime import datetime
 from datetime import date
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
 from pyspark.sql.types import (
     StructType,
     StructField,
     DoubleType,
+    DecimalType,
     StringType,
-    IntegerType,
-    ArrayType
+    FloatType,
 )
 import pandas as pd
+from functools import reduce
+# --- Build the SparkSession ---
+# Use the .config() method to set these parameters before calling .getOrCreate()
+# This ensures Spark requests the correct resources from YARN at the start.
+driver_memory = "24g"                 # plenty for planning & small collects
+executor_cores = 4                    # sweet spot for GC + Python workers
+num_executors  = 12                   # 12 * 4 = 48 cores for executors; ~16 cores left for driver/OS
+executor_memory = "32g"               # per executor heap
+executor_memory_overhead = "8g"       # ~20% overhead for PySpark/Arrow/off-heap
+# Totals: (32+8) * 12 = 480 GB executors + 24 GB driver ≈ 504 GB (adjust down if your hard cap is <500 GB)
+# If you must stay strictly ≤ 500 GB, use executor_memory="30g", overhead="6g"  → (36 * 12) + 24 = 456 + 24 = 480 GB
 
+shuffle_partitions   = 192            # ≈ 2–4× total cores (48) → start with 192
+default_parallelism  = 192
 
-spark = SparkSession.builder.getOrCreate()
-spark.conf.set(
-    "spark.sql.shuffle.partitions", "400"
-)  # Default is 200, increase if needed
-#print('This time we want to have all Coloc and ecaviar >0.01')
+spark = SparkSession.builder \
+    .appName("MyOptimizedPySparkApp") \
+    .config("spark.master", "yarn") \
+    .config("spark.driver.memory", driver_memory) \
+    .config("spark.executor.memory", executor_memory) \
+    .config("spark.executor.cores", executor_cores) \
+    .config("spark.executor.instances", num_executors) \
+    .config("spark.yarn.executor.memoryOverhead", executor_memory_overhead) \
+    .config("spark.sql.shuffle.partitions", shuffle_partitions) \
+    .config("spark.default.parallelism", default_parallelism) \
+    .getOrCreate()
 
-path_n='gs://open-targets-data-releases/25.06/output/'
+print(f"SparkSession created successfully with the following configurations:")
+print(f"  spark.driver.memory: {spark.conf.get('spark.driver.memory')}")
+print(f"  spark.executor.memory: {spark.conf.get('spark.executor.memory')}")
+print(f"  spark.executor.cores: {spark.conf.get('spark.executor.cores')}")
+print(f"  spark.executor.instances: {spark.conf.get('spark.executor.instances')}")
+print(f"  spark.yarn.executor.memoryOverhead: {spark.conf.get('spark.yarn.executor.memoryOverhead')}")
+print(f"  spark.sql.shuffle.partitions: {spark.conf.get('spark.sql.shuffle.partitions')}")
+print(f"  spark.default.parallelism: {spark.conf.get('spark.default.parallelism')}")
+print(f"Spark UI available at: {spark.sparkContext.uiWebUrl}")
+
+print(f"SparkSession created successfully with the following configurations:")
+print(f"  spark.driver.memory: {spark.conf.get('spark.driver.memory')}")
+print(f"  spark.executor.memory: {spark.conf.get('spark.executor.memory')}")
+print(f"  spark.executor.cores: {spark.conf.get('spark.executor.cores')}")
+print(f"  spark.executor.instances: {spark.conf.get('spark.executor.instances')}")
+print(f"  spark.yarn.executor.memoryOverhead: {spark.conf.get('spark.yarn.executor.memoryOverhead')}")
+print(f"  spark.sql.shuffle.partitions: {spark.conf.get('spark.sql.shuffle.partitions')}")
+print(f"  spark.default.parallelism: {spark.conf.get('spark.default.parallelism')}")
+print(f"Spark UI available at: {spark.sparkContext.uiWebUrl}")
+
+# --- Your PySpark Code Here ---
+# Now you can proceed with your data loading and processing.
+# Example:
+# df = spark.read.parquet("hdfs:///user/your_user/your_large_data.parquet")
+# print(f"Number of rows in DataFrame: {df.count()}")
+# df.groupBy("some_column").agg({"another_column": "sum"}).show()
+
+# Remember to stop the SparkSession when you are done
+# spark.stop()
+
+path_n='gs://open-targets-data-releases/25.09/output/'
 
 target = spark.read.parquet(f"{path_n}target/")
 
@@ -52,149 +104,40 @@ biosample = spark.read.parquet(f"{path_n}biosample")
 
 ecaviar=spark.read.parquet(f"{path_n}colocalisation_ecaviar")
 
-all_coloc=ecaviar.unionByName(new, allowMissingColumns=True)#.filter((F.col('clpp')>=0.01) | (F.col('h4')>=0.8))
+all_coloc=ecaviar.unionByName(new, allowMissingColumns=True)
+
+mecact_path = f"{path_n}drug_mechanism_of_action/" #  mechanismOfAction == old version
+
+diseases2 = diseases.select("id", "parents").withColumn(
+    "diseaseIdPropagated",
+    F.explode_outer(F.concat(F.array(F.col("id")), F.col("parents"))),
+)
+
 
 print("loaded files")
 
-print("loaded files")
-
-newColoc = (
-    all_coloc.join(
-        credible.selectExpr(  #### studyLocusId from credible set to uncover the codified variants on left side
-            "studyLocusId as leftStudyLocusId",
-            "StudyId as leftStudyId",
-            "variantId as leftVariantId",
-            "studyType as credibleLeftStudyType",
-        ),
-        on="leftStudyLocusId",
-        how="left",
-    )
-    .join(
-        credible.selectExpr(  #### studyLocusId from credible set to uncover the codified variants on right side
-            "studyLocusId as rightStudyLocusId",
-            "studyId as rightStudyId",
-            "variantId as rightVariantId",
-            "studyType as credibleRightStudyType",
-            "pValueExponent as qtlPValueExponent",
-            'isTransQtl'
-        ),
-        on="rightStudyLocusId",
-        how="left",
-    )
-    .join(
-        index.selectExpr(  ### bring modulated target on right side (QTL study)
-            "studyId as rightStudyId",
-            "geneId",
-            "projectId",
-            "studyType as indexStudyType",
-            "condition",
-            "biosampleId",
-        ),
-        on="rightStudyId",
-        how="left",
-)
-    # .persist()
-)
+#### FIRST MODULE: BUILDING COLOC 
+newColoc=buildColocData(all_coloc,credible,index)
 
 print("loaded newColoc")
 
-# remove columns without content (only null values on them)
-df = evidences.filter((F.col("datasourceId") == "gwas_credible_sets"))
+### SECOND MODULE: PROCESS EVIDENCES TO AVOID EXCESS OF COLUMNS 
+gwasComplete = gwasDataset(evidences,credible)
 
-# Use an aggregation to determine non-null columns
-non_null_counts = df.select(
-    *[F.sum(F.col(col).isNotNull().cast("int")).alias(col) for col in df.columns]
-)
+print('gwasComplete loaded')
+#### THIRD MODULE: INCLUDE COLOC IN THE 
+# In here we use Coloc noPropag
+resolvedColoc=build_resolved_coloc_noPropag(newColoc, gwasComplete,diseases).filter( ## .filter(F.col("betaGwas") < 0)
+        F.col("name") != "COVID-19"
+    ).withColumn('hasGenetics', F.lit('yes'))
 
-# Collect the counts for each column
-non_null_columns = [
-    row[0] for row in non_null_counts.collect()[0].asDict().items() if row[1] > 0
-]
+resolvedColocFiltered = resolvedColoc.filter((F.col('clpp')>=0.01) | (F.col('h4')>=0.8))
 
-# Select only the non-null columns
-filtered_df = df.select(*non_null_columns)  # .persist()
-
-## bring studyId, variantId, beta from Gwas and pValue
-gwasComplete = filtered_df.join(
-    credible.selectExpr(
-        "studyLocusId", "studyId", "variantId", "beta as betaGwas", "pValueExponent"
-    ),
-    on="studyLocusId",
-    how="left",
-)  # .persist()
-
-print("loaded gwasComplete")
-
-resolvedColoc = (
-    (
-        newColoc.withColumnRenamed("geneId", "targetId")
-        .join(
-            gwasComplete.withColumnRenamed("studyLocusId", "leftStudyLocusId"),
-            on=["leftStudyLocusId", "targetId"],
-            how="right", ## has to be right to have the whole genetic evidence subset (having doe or not)
-        )
-        #.join(  ### propagated using parent terms
-        #    diseases.selectExpr(
-        #        "id as diseaseId", "name", "parents", "therapeuticAreas"
-        #    ),
-        #    on="diseaseId",
-        #    how="left",
-        #)
-        #.withColumn(
-        #    "diseaseId",
-        #    F.explode_outer(F.concat(F.array(F.col("diseaseId")), F.col("parents"))),
-        #)
-        #.drop("parents", "oldDiseaseId")
-    ).withColumn(
-        "colocDoE",
-        F.when(
-            F.col("rightStudyType").isin(
-                ["eqtl", "pqtl", "tuqtl", "sceqtl", "sctuqtl"]
-            ),
-            F.when(
-                (F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") > 0),
-                F.lit("GoF_risk"),
-            )
-            .when(
-                (F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") < 0),
-                F.lit("LoF_risk"),
-            )
-            .when(
-                (F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") > 0),
-                F.lit("LoF_protect"),
-            )
-            .when(
-                (F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") < 0),
-                F.lit("GoF_protect"),
-            ),
-        ).when(
-            F.col("rightStudyType").isin(
-                ["sqtl", "scsqtl"]
-            ),  ### opposite directionality than sqtl
-            F.when(
-                (F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") > 0),
-                F.lit("LoF_risk"),
-            )
-            .when(
-                (F.col("betaGwas") > 0) & (F.col("betaRatioSignAverage") < 0),
-                F.lit("GoF_risk"),
-            )
-            .when(
-                (F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") > 0),
-                F.lit("GoF_protect"),
-            )
-            .when(
-                (F.col("betaGwas") < 0) & (F.col("betaRatioSignAverage") < 0),
-                F.lit("LoF_protect"),
-            ),
-        ),
-    )
-    # .persist()
-)
 print("loaded resolvedColloc")
-resolvedColocFiltered = resolvedColoc.filter((F.col('clpp')>=0.01) | F.col('h4').isNotNull()) #| (F.col('h4')>=0.8))
+
 datasource_filter = [
-    #"gwas_credible_set", remove so avoid potential duplicates as it will be incorporated later (DoE is done separately)
+#   "ot_genetics_portal",
+    "gwas_credible_sets",
     "gene_burden",
     "eva",
     "eva_somatic",
@@ -212,16 +155,86 @@ assessment, evidences, actionType, oncolabel = temporary_directionOfEffect(
 
 print("run temporary direction of effect")
 
-window_spec = Window.partitionBy("targetId", "diseaseId",'leftStudyId').orderBy( ### include gwas study
-    F.col("pValueExponent").asc()
+negativeTD = (
+    evidences.filter(F.col("datasourceId") == "chembl")
+    .select("targetId", "diseaseId", "studyStopReason", "studyStopReasonCategories")
+    .filter(F.array_contains(F.col("studyStopReasonCategories"), "Negative"))
+    .groupBy("targetId", "diseaseId")
+    .count()
+    .withColumn("stopReason", F.lit("Negative"))
+    .drop("count")
 )
 
+print("built negativeTD dataset")
 
-window_target_disease_only = Window.partitionBy("targetId", "diseaseId")
-benchmark_processed = resolvedColocFiltered.withColumn(
-    "hasboth",
-    F.size(F.collect_set("colocalisationMethod").over(window_target_disease_only)),
+### drug mechanism of action
+inhibitors = [
+    "RNAI INHIBITOR",
+    "NEGATIVE MODULATOR",
+    "NEGATIVE ALLOSTERIC MODULATOR",
+    "ANTAGONIST",
+    "ANTISENSE INHIBITOR",
+    "BLOCKER",
+    "INHIBITOR",
+    "DEGRADER",
+    "INVERSE AGONIST",
+    "ALLOSTERIC ANTAGONIST",
+    "DISRUPTING AGENT",
+]
+
+activators = [
+    "PARTIAL AGONIST",
+    "ACTIVATOR",
+    "POSITIVE ALLOSTERIC MODULATOR",
+    "POSITIVE MODULATOR",
+    "AGONIST",
+    "SEQUESTERING AGENT",  ## lost at 31.01.2025
+    "STABILISER",
+    # "EXOGENOUS GENE", ## added 24.06.2025
+    # "EXOGENOUS PROTEIN" ## added 24.06.2025
+]
+mecact = spark.read.parquet(mecact_path)
+actionType = (
+        mecact.select(
+            F.explode_outer("chemblIds").alias("drugId"),
+            "actionType",
+            "mechanismOfAction",
+            "targets",
+        )
+        .select(
+            F.explode_outer("targets").alias("targetId"),
+            "drugId",
+            "actionType",
+            "mechanismOfAction",
+        )
+        .groupBy("targetId", "drugId")
+        .agg(F.collect_set("actionType").alias("actionType2"))
+    ).withColumn('nMoA', F.size(F.col('actionType2')))
+
+analysis_chembl_indication = (
+    discrepancifier(
+        assessment.filter((F.col("datasourceId") == "chembl")).join(actionType, on=['targetId','drugId'], how='left')
+        .withColumn(
+            "maxClinPhase",
+            F.max(F.col("clinicalPhase")).over(
+                Window.partitionBy("targetId", "diseaseId")
+            ),
+        )
+        .groupBy("targetId", "diseaseId", "maxClinPhase",'actionType2')
+        .pivot("homogenized")
+        .agg(F.count("targetId"))
+    )
+    #.filter(F.col("coherencyDiagonal") == "coherent")
+    .drop(
+        "coherencyDiagonal", "coherencyOneCell", "noEvaluable", "GoF_risk", "LoF_risk"
+    )
+    .withColumnRenamed("GoF_protect", "drugGoF_protect")
+    .withColumnRenamed("LoF_protect", "drugLoF_protect")
 )
+
+print("built drugApproved dataset")
+
+##### FROM NOW IS THE OLD ANALYSIS OF GEN EVIDENCE 
 # Define window specs for the current iteration, including 'col_name' in partition
 # (This shuffle is still per iteration, but unavoidable if 'resolvedAgreeDrug' depends on 'col_name' values)
 current_col_window_spec_qtl = Window.partitionBy("targetId", "diseaseId").orderBy(
@@ -231,9 +244,15 @@ current_col_pvalue_order_window = Window.partitionBy("targetId", "diseaseId").or
     F.col("colocalisationMethod").asc(), F.col("qtlPValueExponent").asc()
 )
 
-# Calculate 'resolvedAgreeDrug' for the current 'col_name'
-# This involves a shuffle per iteration.
-temp_df_with_resolved = benchmark_processed.withColumn(
+### if the are two coloc method, say it
+window_target_disease_only = Window.partitionBy("targetId", "diseaseId")
+benchmark_processed = resolvedColocFiltered.withColumn(
+    "hasboth",
+    F.size(F.collect_set("colocalisationMethod").over(window_target_disease_only)),
+)
+
+# take the best coloc (Coloc > ecaviar) with the lowest p value
+gwasCredibleAssoc_qtlPValue = benchmark_processed.withColumn(
     "resolvedAgreeDrug",
     F.when(
         F.col("hasboth") > 1,
@@ -243,21 +262,14 @@ temp_df_with_resolved = benchmark_processed.withColumn(
     ).otherwise(
         F.first(F.col("colocDoE"), ignorenulls=True).over(current_col_window_spec_qtl)
     ),
-)
-
-# qtlPValueExponent
-gwasCredibleAssoc_qtlPValue = (
-    temp_df_with_resolved.withColumn(
+    ).withColumn(
         "homogenized", F.col('colocDoE')
-    )  ## added 30.01.2025
-    # .select("targetId", "diseaseId",'leftStudyId', "homogenized")
-    .withColumn(
+    ).withColumn(
         "homogenized",
         F.when(F.col("homogenized").isNull(), F.lit("noEvaluable")).otherwise(
             F.col("homogenized")
         ),
     )
-)
 
 print("Moving to step 2")
 
@@ -315,26 +327,7 @@ diseaseTA = (
 )
 
 #### give us propagation of diseases and list of therapeutic areas associated
-diseases2 = diseases.select("id", "parents").withColumn(
-    "diseaseIdPropagated",
-    F.explode_outer(F.concat(F.array(F.col("id")), F.col("parents"))),
-)
 
-chembl_trials = (
-    assessment.filter((F.col("datasourceId").isin(["chembl"])))
-    .groupBy("targetId", "diseaseId")
-    .agg(F.max(F.col("clinicalPhase")).alias("maxClinPhase"))
-)
-
-negativeTD = (
-    evidences.filter(F.col("datasourceId") == "chembl")
-    .select("targetId", "diseaseId", "studyStopReason", "studyStopReasonCategories")
-    .filter(F.array_contains(F.col("studyStopReasonCategories"), "Negative"))
-    .groupBy("targetId", "diseaseId")
-    .count()
-    .withColumn("stopReason", F.lit("Negative"))
-    .drop("count")
-)
 
 assessment_all = assessment.unionByName(
     gwasCredibleAssoc_qtlPValue.withColumn("datasourceId", F.lit("gwas_credible_set")),
@@ -505,26 +498,29 @@ def full_analysis_propagation(
             "maxDoE", F.array_max(F.col("arrayN"))
         ).withColumn("maxDoE_names", F.array(*conditions)
         ).withColumn("maxDoE_names", F.expr("filter(maxDoE_names, x -> x is not null)")
+        ).join(negativeTD, on=["targetId", "diseaseId"], how="left").withColumn(
+        "PhaseT",
+        F.when(F.col("stopReason") == "Negative", F.lit("yes")).otherwise(F.lit("no")),
         ).withColumn(
-            "Phase4",
-            F.when(F.col("maxClinPhase") == 4, F.lit("yes")).otherwise(F.lit("no")),
-        )
-        .withColumn(
-            "Phase>=3",
-            F.when(F.col("maxClinPhase") >= 3, F.lit("yes")).otherwise(F.lit("no")),
-        )
-        .withColumn(
-            "Phase>=2",
-            F.when(F.col("maxClinPhase") >= 2, F.lit("yes")).otherwise(F.lit("no")),
-        )
-        .withColumn(
-            "Phase>=1",
-            F.when(F.col("maxClinPhase") >= 1, F.lit("yes")).otherwise(F.lit("no")),
-        )
-        .join(negativeTD, on=["targetId", "diseaseId"], how="left")
-        .withColumn(
-            "PhaseT",
-            F.when(F.col("stopReason") == "Negative", F.lit("yes")).otherwise(F.lit("no")),
+            "phase4",
+            F.when(
+                (F.col("maxClinPhase") == 4) & (F.col("PhaseT") == "no"), F.lit("yes")
+            ).otherwise(F.lit("no")),
+        ).withColumn(
+            "phase>=3",
+            F.when(
+                (F.col("maxClinPhase") >= 3) & (F.col("PhaseT") == "no"), F.lit("yes")
+            ).otherwise(F.lit("no")),
+        ).withColumn(
+            "phase>=2",
+            F.when(
+                (F.col("maxClinPhase") >= 2) & (F.col("PhaseT") == "no"), F.lit("yes")
+            ).otherwise(F.lit("no")),
+        ).withColumn(
+            "phase>=1",
+            F.when(
+                (F.col("maxClinPhase") >= 1) & (F.col("PhaseT") == "no"), F.lit("yes")
+            ).otherwise(F.lit("no")),
         )
         .join(
             diseaseTA.select("diseaseId", "taLabelSimple"), on="diseaseId", how="left"
@@ -664,27 +660,29 @@ def full_analysis_noPropagation(
             "maxDoE", F.array_max(F.col("arrayN"))
         ).withColumn("maxDoE_names", F.array(*conditions)
         ).withColumn("maxDoE_names", F.expr("filter(maxDoE_names, x -> x is not null)")
-        )
-        .withColumn(
-            "Phase4",
-            F.when(F.col("maxClinPhase") == 4, F.lit("yes")).otherwise(F.lit("no")),
-        )
-        .withColumn(
-            "Phase>=3",
-            F.when(F.col("maxClinPhase") >= 3, F.lit("yes")).otherwise(F.lit("no")),
-        )
-        .withColumn(
-            "Phase>=2",
-            F.when(F.col("maxClinPhase") >= 2, F.lit("yes")).otherwise(F.lit("no")),
-        )
-        .withColumn(
-            "Phase>=1",
-            F.when(F.col("maxClinPhase") >= 1, F.lit("yes")).otherwise(F.lit("no")),
-        )
-        .join(negativeTD, on=["targetId", "diseaseId"], how="left")
-        .withColumn(
-            "PhaseT",
-            F.when(F.col("stopReason") == "Negative", F.lit("yes")).otherwise(F.lit("no")),
+        ).join(negativeTD, on=["targetId", "diseaseId"], how="left").withColumn(
+        "PhaseT",
+        F.when(F.col("stopReason") == "Negative", F.lit("yes")).otherwise(F.lit("no")),
+        ).withColumn(
+            "phase4",
+            F.when(
+                (F.col("maxClinPhase") == 4) & (F.col("PhaseT") == "no"), F.lit("yes")
+            ).otherwise(F.lit("no")),
+        ).withColumn(
+            "phase>=3",
+            F.when(
+                (F.col("maxClinPhase") >= 3) & (F.col("PhaseT") == "no"), F.lit("yes")
+            ).otherwise(F.lit("no")),
+        ).withColumn(
+            "phase>=2",
+            F.when(
+                (F.col("maxClinPhase") >= 2) & (F.col("PhaseT") == "no"), F.lit("yes")
+            ).otherwise(F.lit("no")),
+        ).withColumn(
+            "phase>=1",
+            F.when(
+                (F.col("maxClinPhase") >= 1) & (F.col("PhaseT") == "no"), F.lit("yes")
+            ).otherwise(F.lit("no")),
         )
         .join(
             diseaseTA.select("diseaseId", "taLabelSimple"), on="diseaseId", how="left"
@@ -802,6 +800,9 @@ datasource_list = [
     #"wCgc",
     "somatic",
     "germline",
+    "orpha_2_eva",
+    "orpha_2",
+    "orpha_2_eva_burden"
 ]
 
 germline_list = [
@@ -813,6 +814,34 @@ germline_list = [
     "gene2phenotype",
 ]
 
+### merge 'orphanet', 'gene2phenotype' and 'eva'
+
+orpha_2_eva=[
+    #"gene_burden",
+    "eva",
+    #"gwas_credible_set",
+    #"impc",
+    "orphanet",
+    "gene2phenotype",
+]
+
+orpha_2=[
+    #"gene_burden",
+    "#eva",
+    #"gwas_credible_set",
+    #"impc",
+    "orphanet",
+    "gene2phenotype",
+]
+
+orpha_2_eva_burden=[
+    "gene_burden",
+    "#eva",
+    #"gwas_credible_set",
+    #"impc",
+    "orphanet",
+    "gene2phenotype",
+]
 somatic_list = ["intogen", "cancer_gene_census", "eva_somatic"]
 
 
@@ -887,6 +916,59 @@ for value in datasource_list:
             diseaseTA,
         )
 
+    elif value == "orpha_2_eva":
+        (
+            dfs_dict[f"df_{value}_All_original"],
+            dfs_dict[f"df_{value}_Other_original"],
+            dfs_dict[f"df_{value}_OtherNull_original"],
+            dfs_dict[f"df_{value}_Oncology_original"],
+            dfs_dict_propag[f"df_{value}_All_propag"],
+            dfs_dict_propag[f"df_{value}_Other_propag"],
+            dfs_dict_propag[f"df_{value}_OtherNull_propag"],
+            dfs_dict_propag[f"df_{value}_Oncology_propag"],
+        ) = dataset_builder(
+            assessment_all,
+            orpha_2_eva,
+            analysis_chembl,
+            negativeTD,
+            diseaseTA,
+        )
+
+    elif value == "orpha_2":
+        (
+            dfs_dict[f"df_{value}_All_original"],
+            dfs_dict[f"df_{value}_Other_original"],
+            dfs_dict[f"df_{value}_OtherNull_original"],
+            dfs_dict[f"df_{value}_Oncology_original"],
+            dfs_dict_propag[f"df_{value}_All_propag"],
+            dfs_dict_propag[f"df_{value}_Other_propag"],
+            dfs_dict_propag[f"df_{value}_OtherNull_propag"],
+            dfs_dict_propag[f"df_{value}_Oncology_propag"],
+        ) = dataset_builder(
+            assessment_all,
+            orpha_2,
+            analysis_chembl,
+            negativeTD,
+            diseaseTA,
+        )
+
+    elif value == "orpha_2_eva_burden":
+        (
+            dfs_dict[f"df_{value}_All_original"],
+            dfs_dict[f"df_{value}_Other_original"],
+            dfs_dict[f"df_{value}_OtherNull_original"],
+            dfs_dict[f"df_{value}_Oncology_original"],
+            dfs_dict_propag[f"df_{value}_All_propag"],
+            dfs_dict_propag[f"df_{value}_Other_propag"],
+            dfs_dict_propag[f"df_{value}_OtherNull_propag"],
+            dfs_dict_propag[f"df_{value}_Oncology_propag"],
+        ) = dataset_builder(
+            assessment_all,
+            orpha_2,
+            analysis_chembl,
+            negativeTD,
+            diseaseTA,
+        )
     else:
         (
             dfs_dict[f"df_{value}_All_original"],
@@ -986,13 +1068,14 @@ for value in datasource_list:
         )
 '''
 
+
 def comparisons_df() -> list:
     """Return list of all comparisons to be used in the analysis"""
     comparisons = spark.createDataFrame(
         data=[
             ("hasGeneticEvidence", "byDatatype"),
-            ("diagonalYes", "byDatatype"),
-            ("oneCellYes", "byDatatype"),
+            #("diagonalYes", "byDatatype"),
+            #("oneCellYes", "byDatatype"),
             ("NdiagonalYes", "byDatatype"),
             ("NoneCellYes", "byDatatype"),
         ],
