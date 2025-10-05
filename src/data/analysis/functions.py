@@ -1439,7 +1439,7 @@ def build_resolved_coloc(newColoc, gwasComplete, diseases):
 
 
 
-def build_resolved_coloc_noPropag(newColoc, gwasComplete):
+def build_resolved_coloc_noPropag(newColoc, gwasComplete,diseases):
     """
     Build the resolvedColoc DataFrame with propagated disease parents
     and computed colocDoE.
@@ -1460,7 +1460,14 @@ def build_resolved_coloc_noPropag(newColoc, gwasComplete):
                 gwasComplete.withColumnRenamed("studyLocusId", "leftStudyLocusId"),
                 on=["leftStudyLocusId", "targetId"],
                 how="right",  # NOTE: this is right as per your requirement
+            ).join(
+                diseases.selectExpr(
+                    "id as diseaseId", "name", "parents", "therapeuticAreas"
+                ),
+                on="diseaseId",
+                how="left",
             )
+            .drop("parents","therapeuticAreas")
         ).withColumn(
             "colocDoE",
             F.when(
