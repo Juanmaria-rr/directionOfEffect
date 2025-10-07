@@ -1,5 +1,4 @@
 import time
-from array import ArrayType
 from functions import (
     relative_success,
     spreadSheetFormatter,
@@ -17,7 +16,7 @@ from pyspark.sql import SparkSession, Window
 import pyspark.sql.functions as F
 from datetime import datetime
 from datetime import date
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+from pyspark.sql.types import StructType, StructField, StringType,ArrayType, IntegerType
 from pyspark.sql.types import (
     StructType,
     StructField,
@@ -28,51 +27,37 @@ from pyspark.sql.types import (
 )
 import pandas as pd
 from functools import reduce
-# --- Build the SparkSession ---
-# Use the .config() method to set these parameters before calling .getOrCreate()
-# This ensures Spark requests the correct resources from YARN at the start.
-driver_memory = "24g"                 # plenty for planning & small collects
-executor_cores = 4                    # sweet spot for GC + Python workers
-num_executors  = 12                   # 12 * 4 = 48 cores for executors; ~16 cores left for driver/OS
-executor_memory = "32g"               # per executor heap
-executor_memory_overhead = "8g"       # ~20% overhead for PySpark/Arrow/off-heap
-# Totals: (32+8) * 12 = 480 GB executors + 24 GB driver ≈ 504 GB (adjust down if your hard cap is <500 GB)
-# If you must stay strictly ≤ 500 GB, use executor_memory="30g", overhead="6g"  → (36 * 12) + 24 = 456 + 24 = 480 GB
+from pyspark import SparkConf
 
-shuffle_partitions   = 192            # ≈ 2–4× total cores (48) → start with 192
-default_parallelism  = 192
+print('new config for spark session')
+conf = (
+    SparkConf()
+    .setAppName("directionOfEffect")
+    # ---- memory balance ----
+    .set("spark.driver.memory", "10g")
+    #.set("spark.driver.memory", "8g")
 
-spark = SparkSession.builder \
-    .appName("MyOptimizedPySparkApp") \
-    .config("spark.master", "yarn") \
-    .config("spark.driver.memory", driver_memory) \
-    .config("spark.executor.memory", executor_memory) \
-    .config("spark.executor.cores", executor_cores) \
-    .config("spark.executor.instances", num_executors) \
-    .config("spark.yarn.executor.memoryOverhead", executor_memory_overhead) \
-    .config("spark.sql.shuffle.partitions", shuffle_partitions) \
-    .config("spark.default.parallelism", default_parallelism) \
-    .getOrCreate()
+    .set("spark.executor.memory", "32g")
 
-print(f"SparkSession created successfully with the following configurations:")
-print(f"  spark.driver.memory: {spark.conf.get('spark.driver.memory')}")
-print(f"  spark.executor.memory: {spark.conf.get('spark.executor.memory')}")
-print(f"  spark.executor.cores: {spark.conf.get('spark.executor.cores')}")
-print(f"  spark.executor.instances: {spark.conf.get('spark.executor.instances')}")
-print(f"  spark.yarn.executor.memoryOverhead: {spark.conf.get('spark.yarn.executor.memoryOverhead')}")
-print(f"  spark.sql.shuffle.partitions: {spark.conf.get('spark.sql.shuffle.partitions')}")
-print(f"  spark.default.parallelism: {spark.conf.get('spark.default.parallelism')}")
-print(f"Spark UI available at: {spark.sparkContext.uiWebUrl}")
+    #.set("spark.executor.memory", "24g")
+#    .set("spark.executor.memoryOverhead", "6g")
+    .set("spark.executor.memoryOverhead", "4g")
 
-print(f"SparkSession created successfully with the following configurations:")
-print(f"  spark.driver.memory: {spark.conf.get('spark.driver.memory')}")
-print(f"  spark.executor.memory: {spark.conf.get('spark.executor.memory')}")
-print(f"  spark.executor.cores: {spark.conf.get('spark.executor.cores')}")
-print(f"  spark.executor.instances: {spark.conf.get('spark.executor.instances')}")
-print(f"  spark.yarn.executor.memoryOverhead: {spark.conf.get('spark.yarn.executor.memoryOverhead')}")
-print(f"  spark.sql.shuffle.partitions: {spark.conf.get('spark.sql.shuffle.partitions')}")
-print(f"  spark.default.parallelism: {spark.conf.get('spark.default.parallelism')}")
-print(f"Spark UI available at: {spark.sparkContext.uiWebUrl}")
+    # ---- cores & parallelism ----
+    #.set("spark.executor.cores", "8")   
+    .set("spark.executor.cores", "4")
+      # half your cores for safety
+    .set("spark.executor.instances", "1")
+    #.set("spark.sql.shuffle.partitions", "128")
+    .set("spark.sql.shuffle.partitions", "64")
+    .set("spark.default.parallelism", "128")
+    # ---- quality of life ----
+    .set("spark.sql.execution.arrow.pyspark.enabled", "true")
+    .set("spark.sql.adaptive.enabled", "true")
+    .set("spark.local.dir", "/tmp/spark-temp")
+)
+
+spark = SparkSession.builder.config(conf=conf).getOrCreate()
 
 # --- Your PySpark Code Here ---
 # Now you can proceed with your data loading and processing.
@@ -787,17 +772,17 @@ wCgc_list = [
 ]
 
 datasource_list = [
-    #"gene_burden",
-    #"intogen",
-    #"cancer_gene_census",
-    #"eva",
-    #"eva_somatic",
+    "gene_burden",
+    "intogen",
+    "cancer_gene_census",
+    "eva",
+    "eva_somatic",
     "gwas_credible_set",
-    #"impc",
-    #"orphanet",
-    #"gene2phenotype",
-    #"WOcgc",
-    #"wCgc",
+    "impc",
+    "orphanet",
+    "gene2phenotype",
+    "WOcgc",
+    "wCgc",
     "somatic",
     "germline",
     "orpha_2_eva",
@@ -827,7 +812,7 @@ orpha_2_eva=[
 
 orpha_2=[
     #"gene_burden",
-    "#eva",
+    #"#eva",
     #"gwas_credible_set",
     #"impc",
     "orphanet",
@@ -964,7 +949,7 @@ for value in datasource_list:
             dfs_dict_propag[f"df_{value}_Oncology_propag"],
         ) = dataset_builder(
             assessment_all,
-            orpha_2,
+            orpha_2_eva_burden,
             analysis_chembl,
             negativeTD,
             diseaseTA,
@@ -1350,7 +1335,7 @@ df.withColumn(
     "type",
     F.regexp_extract(F.col("group"), r"_(propag|original)$", 1)
 ).toPandas().to_csv(
-    f"gs://ot-team/jroldan/analysis/{today_date}_genEvidAnalysis_new_NoFileteredColocCaviar.csv"
+    f"gs://ot-team/jroldan/analysis/{today_date}_genEvidAnalysis_new_filteredColocCaviarCombinedDS_goodOne.csv"
 )
 
 print("dataframe written \n Analysis finished")
