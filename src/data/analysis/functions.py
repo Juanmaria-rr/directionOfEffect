@@ -1007,13 +1007,13 @@ def build_gwasResolvedColoc(path):
                 on="diseaseId",
                 how="left",
             )
-            .withColumn(
-                "diseaseId",
-                F.explode_outer(
-                    F.concat(F.array(F.col("diseaseId")), F.col("parents"))
-                ),
-            )
-            .drop("parents", "oldDiseaseId")
+            #.withColumn(
+            #    "diseaseId",
+            #    F.explode_outer(
+            #        F.concat(F.array(F.col("diseaseId")), F.col("parents"))
+            #    ),
+            #)
+            #.drop("parents", "oldDiseaseId")
         )
         .withColumn(
             "colocDoE",

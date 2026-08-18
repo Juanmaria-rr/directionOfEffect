@@ -1,0 +1,4 @@
+2026-07-05 18:27:30 chain watcher started, waiting on PID 74800
+2026-07-05 19:36:31 job1 (PID 74800) is no longer running
+2026-07-05 19:36:31 job1 finished successfully -> launching job2
+2026-07-05 19:36:31 job2 launched, PID 220525, output -> /home/jmroldan/jr-doe-temp1810_machineData/reproducibility/run_colocAndCaviarDoE_20260705_193631.out
