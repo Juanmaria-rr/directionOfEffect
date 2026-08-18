@@ -1,0 +1,8 @@
+# Logs de ejecución: decenas de MB de salida de Spark, no aportan al código.
+# Los de los runs que produjeron los outputs publicados van comprimidos en el
+# bundle (gs://ot-team/jroldan/backup/2026-08-18/doe_dedupPairs_bundle.tar.gz).
+reproducibility/logs/
+reproducibility/*.out
+
+__pycache__/
+*.pyc

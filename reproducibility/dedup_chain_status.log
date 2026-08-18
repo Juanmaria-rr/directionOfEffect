@@ -1,0 +1,24 @@
+2026-08-12 21:22:00 === dedup chain started ===
+2026-08-12 21:22:00 launching variant 'propag' (PROPAGATE_DISEASES=true) -> /home/jmroldan/jr-doe-temp1810_machineData/reproducibility/run_dedupPairs_propag_20260812_212200.out
+2026-08-12 21:25:17 === dedup chain started ===
+2026-08-12 21:25:17 launching variant 'propag' (PROPAGATE_DISEASES=true) -> /home/jmroldan/jr-doe-temp1810_machineData/reproducibility/run_dedupPairs_propag_20260812_212517.out
+2026-08-13 18:19:22 variant 'propag' finished OK
+2026-08-13 18:19:22 launching variant 'noPropag' (PROPAGATE_DISEASES=false) -> /home/jmroldan/jr-doe-temp1810_machineData/reproducibility/run_dedupPairs_noPropag_20260813_181922.out
+2026-08-13 18:38:17 variant 'noPropag' FAILED (exit=1, no 'Analysis finished' marker or an error was found). Check /home/jmroldan/jr-doe-temp1810_machineData/reproducibility/run_dedupPairs_noPropag_20260813_181922.out
+2026-08-13 18:38:17 === dedup chain finished ===
+2026-08-14 11:43:22 === dedup chain started (single variant: noPropag) ===
+2026-08-14 11:43:22 launching variant 'noPropag' (PROPAGATE_DISEASES=false) -> /home/jmroldan/jr-doe-temp1810_machineData/reproducibility/run_dedupPairs_noPropag_20260814_114322.out
+2026-08-14 15:33:52 variant 'noPropag' FAILED (exit=143, no 'Analysis finished' marker or an error was found). Check /home/jmroldan/jr-doe-temp1810_machineData/reproducibility/run_dedupPairs_noPropag_20260814_114322.out
+2026-08-14 15:33:52 === dedup chain finished ===
+2026-08-14 15:41:49 === dedup chain started (single variant: noPropag) ===
+2026-08-14 15:41:49 launching variant 'noPropag' (PROPAGATE_DISEASES=false) -> /home/jmroldan/jr-doe-temp1810_machineData/reproducibility/run_dedupPairs_noPropag_20260814_154149.out
+2026-08-14 15:54:01 variant 'noPropag' FAILED (exit=143, no 'Analysis finished' marker or an error was found). Check /home/jmroldan/jr-doe-temp1810_machineData/reproducibility/run_dedupPairs_noPropag_20260814_154149.out
+2026-08-14 15:54:01 === dedup chain finished ===
+2026-08-14 16:08:57 === dedup chain started (single variant: noPropag) ===
+2026-08-14 16:08:57 launching variant 'noPropag' (PROPAGATE_DISEASES=false) -> /home/jmroldan/jr-doe-temp1810_machineData/reproducibility/run_dedupPairs_noPropag_20260814_160857.out
+2026-08-15 08:50:33 variant 'noPropag' finished OK
+2026-08-15 08:50:33 === dedup chain finished ===
+2026-08-15 14:27:24 === dedup chain started (single variant: propag) ===
+2026-08-15 14:27:24 launching variant 'propag' (PROPAGATE_DISEASES=true) -> /home/jmroldan/jr-doe-temp1810_machineData/reproducibility/run_dedupPairs_propag_20260815_142724.out
+2026-08-15 15:40:50 variant 'propag' finished OK
+2026-08-15 15:40:50 === dedup chain finished ===
