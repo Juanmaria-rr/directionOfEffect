@@ -162,6 +162,76 @@ def safe_parquet_write(df, path, mode="overwrite"):
         .parquet(path)
     )
 
+
+###4### Parquet dump of the per-datasource datasets (one flat folder, one .parquet per dataset)
+# Set DUMP_DATASETS=false to skip it entirely.
+DUMP_DATASETS = os.getenv("DUMP_DATASETS", "true").lower() == "true"
+# DATASETS_ONLY=true stops the run right after those files are written, before any analysis.
+DATASETS_ONLY = os.getenv("DATASETS_ONLY", "false").lower() == "true"
+# Print both up front: PIVOTS_ONLY in the sibling script announced itself only at the very
+# end, so a forgotten env var cost a full run before anyone noticed. Announce it at minute 0.
+print(f"\u2699\uFE0F  DUMP_DATASETS={DUMP_DATASETS}  DATASETS_ONLY={DATASETS_ONLY}")
+if DATASETS_ONLY and not DUMP_DATASETS:
+    raise SystemExit(
+        "DATASETS_ONLY=true with DUMP_DATASETS=false would build everything and write nothing."
+    )
+
+
+def _parquet_safe(df):
+    """Parquet holds array/struct/map/binary natively -- nothing to flatten, unlike CSV.
+    The one type it still refuses is VOID (NullType): an all-NULL column with no inferred
+    type, which aborts the write with
+    'Parquet data source does not support void data type'.
+    Cast those to string: every value is NULL by definition, so nothing is lost and the
+    column survives in the schema instead of vanishing.
+    """
+    from pyspark.sql.types import NullType
+
+    out = df
+    for field in df.schema.fields:
+        if isinstance(field.dataType, NullType):
+            out = out.withColumn(field.name, F.col(field.name).cast("string"))
+    return out
+
+
+def write_single_parquet(df, folder, name):
+    """Write `df` as ONE file at {folder}/{name}.parquet -- flat, no per-dataset subfolder.
+
+    Spark always emits a directory of part-files, so: write to a temp dir, move the single
+    part-* out under its final name, delete the temp dir. Goes through the Hadoop
+    FileSystem API so it works on gs:// exactly as on a local path.
+    """
+    tmp_dir = f"{folder}/_tmp_{name}"
+    final_path = f"{folder}/{name}.parquet"
+
+    (
+        _parquet_safe(df)
+        .coalesce(1)
+        .write.mode("overwrite")
+        .option("compression", "snappy")
+        .parquet(tmp_dir)
+    )
+
+    Path = spark._jvm.org.apache.hadoop.fs.Path
+    hconf = spark._jsc.hadoopConfiguration()
+    tmp_p = Path(tmp_dir)
+    fs = tmp_p.getFileSystem(hconf)
+
+    parts = [
+        st.getPath()
+        for st in fs.listStatus(tmp_p)
+        if st.getPath().getName().startswith("part-")
+    ]
+    if len(parts) != 1:
+        raise RuntimeError(f"expected exactly 1 part file in {tmp_dir}, found {len(parts)}")
+
+    final_p = Path(final_path)
+    fs.delete(final_p, False)  # overwrite semantics for a re-run
+    fs.rename(parts[0], final_p)
+    fs.delete(tmp_p, True)  # drop the temp dir together with its _SUCCESS
+    print(f"\U0001F4E6 parquet \u2192 {final_path}")
+
+
 # --- Your PySpark Code Here ---
 # Now you can proceed with your data loading and processing.
 # Example:
@@ -1269,6 +1339,33 @@ gwasComplete.unpersist()
 newColoc.unpersist()
 #####################
 
+
+###5### Dump every per-datasource dataset as a single .parquet into ONE flat folder.
+#### Runs BEFORE any aggregation, so with DATASETS_ONLY=true the datasets can be produced
+#### without paying for the analyses at all.
+datasets_dir = f"gs://ot-team/jroldan/analysis/{today_date}_{run_tag}_datasets_parquet"
+
+if DUMP_DATASETS:
+    all_datasets = list(dfs_dict.items()) + list(dfs_dict_propag.items())
+    print(
+        f"\U0001F4C1 writing {len(all_datasets)} datasets as parquet "
+        f"({len(dfs_dict)} non-propagated + {len(dfs_dict_propag)} propagated) \u2192 {datasets_dir}/"
+    )
+    for _i, (_key, _df) in enumerate(all_datasets, 1):
+        print(f"   [{_i}/{len(all_datasets)}] {_key}")
+        write_single_parquet(_df, datasets_dir, _key)
+    spark.catalog.clearCache()
+    print(f"\u2705 {len(all_datasets)} datasets written as parquet to {datasets_dir}/ at", datetime.now())
+
+if DATASETS_ONLY:
+    print(
+        "\U0001F6D1 DATASETS_ONLY=true \u2192 skipping every aggregation/analysis and the final "
+        "parquet/tsv outputs.\n Analysis finished"
+    )
+    spark.stop()
+    _log_file.flush()
+    _sys.exit(0)
+#####################
 
 print("starting with non-propagated aggregations at", c)
 #for key, df in islice(dfs_dict.items(), 1): ## for debugging
